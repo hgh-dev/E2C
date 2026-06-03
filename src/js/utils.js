@@ -44,7 +44,7 @@ export function getDisplayTitle(row, titleColumns, fallbackIndex) {
   const title = titleColumns
     .map((column) => normalizeValue(row[column]))
     .filter(Boolean)
-    .join(" ");
+    .join(" | ");
   return title || `카드 ${fallbackIndex + 1}`;
 }
 

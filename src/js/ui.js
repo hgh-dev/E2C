@@ -120,11 +120,6 @@ export const LABEL_OPTIONS = [
 ];
 
 const importOpenIcons = {
-  upload: `
-    <path d="M12 3v12"></path>
-    <path d="m7 8 5-5 5 5"></path>
-    <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>
-  `,
   edit: `
     <path d="M12 20h9"></path>
     <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
@@ -639,16 +634,11 @@ function getPageGroupStart(page) {
 }
 
 export function renderImportButton(state, hasActiveDeck = false) {
-  const hasImportedFile = Boolean(state.fileName);
-  elements.importOpenLabel.textContent = hasImportedFile ? "수정" : "파일 가져오기";
-  elements.importOpenIcon.innerHTML = hasImportedFile ? importOpenIcons.edit : importOpenIcons.upload;
+  elements.importOpenLabel.textContent = "수정";
+  elements.importOpenIcon.innerHTML = importOpenIcons.edit;
   elements.importOpen.setAttribute(
     "aria-label",
-    hasActiveDeck
-      ? hasImportedFile
-        ? "가져오기 설정 수정"
-        : "파일 가져오기"
-      : "덱을 먼저 선택하세요",
+    hasActiveDeck ? "가져오기 설정 수정" : "덱을 먼저 선택하세요",
   );
   elements.importOpen.disabled = !hasActiveDeck;
   elements.saveCurrent.disabled = !hasActiveDeck || state.columns.length === 0;
