@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111111" />
+    <title>E2C - Excel to Card</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script type="module" src="./src/js/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand-block">
+          <button id="sidebarOpen" class="brand-mark" type="button" aria-label="덱 열기">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M5 9h22"></path>
+              <path d="M5 16h22"></path>
+              <path d="M5 23h22"></path>
+            </svg>
+          </button>
+          <div>
+            <h1>E2C</h1>
+            <p>Excel to Card</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="saveCurrent" class="header-action secondary-header-action" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+              <path d="M17 21v-8H7v8"></path>
+              <path d="M7 3v5h8"></path>
+            </svg>
+            <span class="visually-hidden">저장</span>
+          </button>
+          <button id="importOpen" class="header-action" type="button">
+            <svg id="importOpenIcon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="m7 8 5-5 5 5"></path>
+              <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>
+            </svg>
+            <span id="importOpenLabel" class="visually-hidden">파일 가져오기</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="summary-row" aria-live="polite">
+          <span id="cardCount">0개 카드</span>
+          <div class="summary-actions">
+            <button id="filterOpen" class="summary-action" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h16l-6.5 7.4V19l-3 1.5v-8.1Z"></path>
+              </svg>
+              필터
+            </button>
+            <button id="sortOpen" class="summary-action" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 6h11"></path>
+                <path d="M8 12h8"></path>
+                <path d="M8 18h5"></path>
+                <path d="M4 6v12"></path>
+                <path d="m2 16 2 2 2-2"></path>
+              </svg>
+              정렬
+            </button>
+          </div>
+        </section>
+
+        <div class="card-scroll-area">
+          <section id="message" class="empty-state" role="status">
+            엑셀 파일을 선택하세요.
+          </section>
+
+          <section id="cardList" class="card-list" aria-label="카드 목록"></section>
+          <div id="loadMoreSentinel" class="load-more-sentinel" aria-hidden="true" hidden>
+            더 불러오는 중
+          </div>
+          <nav id="pageControls" class="page-controls" aria-label="페이지 이동" hidden>
+            <button id="pageFirst" class="page-icon-button" type="button" aria-label="맨 처음 페이지">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 5v14"></path>
+                <path d="m18 6-6 6 6 6"></path>
+              </svg>
+            </button>
+            <button id="pagePrev" class="page-icon-button" type="button" aria-label="이전 페이지">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 18-6-6 6-6"></path>
+              </svg>
+            </button>
+            <div id="pageNumbers" class="page-numbers" aria-label="페이지 번호"></div>
+            <button id="pageNext" class="page-icon-button" type="button" aria-label="다음 페이지">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 18 6-6-6-6"></path>
+              </svg>
+            </button>
+            <button id="pageLast" class="page-icon-button" type="button" aria-label="맨 마지막 페이지">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 6 6 6-6 6"></path>
+                <path d="M18 5v14"></path>
+              </svg>
+            </button>
+          </nav>
+        </div>
+      </main>
+
+      <section id="floatingSearchPanel" class="floating-search-panel" aria-label="카드 검색" hidden>
+        <label class="field search-scope-field">
+          <span>검색 범위</span>
+          <button id="searchColumnSelect" class="select-button" type="button" disabled></button>
+        </label>
+        <label class="field floating-search-field">
+          <span>검색</span>
+          <input id="searchInput" type="search" placeholder="검색어 입력" disabled />
+        </label>
+        <button id="floatingSearchClose" class="icon-button" type="button" aria-label="검색 닫기">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </section>
+      <button id="floatingSearchButton" class="floating-search-button" type="button" aria-label="검색 열기" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m16.5 16.5 4 4"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div id="labelPalette" class="label-palette" role="dialog" aria-label="라벨 색상 선택" hidden>
+      <div id="labelPaletteList" class="label-palette-list"></div>
+    </div>
+
+    <section id="filterPanel" class="modal centered-modal filter-panel" aria-label="필터" hidden>
+      <div class="modal-backdrop" data-close-filter></div>
+      <article class="modal-card filter-sort-modal-card">
+        <header class="modal-header">
+          <h2>필터</h2>
+          <button id="filterClose" class="icon-button" type="button" aria-label="필터 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="modal-content filter-modal-content">
+          <div id="filterList" class="filter-list"></div>
+          <button id="addFilter" class="secondary-action filter-add-button" type="button">
+            필터 추가
+          </button>
+        </div>
+        <footer class="modal-footer-actions">
+          <button id="filterCancel" class="secondary-action" type="button">취소</button>
+          <button id="filterApply" class="primary-action" type="button">적용</button>
+        </footer>
+      </article>
+    </section>
+
+    <section id="sortPanel" class="modal centered-modal sort-panel" aria-label="정렬" hidden>
+      <div class="modal-backdrop" data-close-sort></div>
+      <article class="modal-card filter-sort-modal-card">
+        <header class="modal-header">
+          <h2>정렬</h2>
+          <button id="sortClose" class="icon-button" type="button" aria-label="정렬 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="modal-content filter-sort-grid">
+          <label class="field">
+            <span>정렬 열</span>
+            <button id="sortColumnSelect" class="select-button" type="button" disabled></button>
+          </label>
+          <label class="field">
+            <span>정렬 방향</span>
+            <button id="sortDirectionSelect" class="select-button" type="button" disabled></button>
+          </label>
+        </div>
+        <footer class="modal-footer-actions">
+          <button id="sortCancel" class="secondary-action" type="button">취소</button>
+          <button id="sortApply" class="primary-action" type="button">적용</button>
+        </footer>
+      </article>
+    </section>
+
+    <aside id="sidebar" class="sidebar" aria-label="덱" hidden>
+      <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+      <section class="sidebar-panel">
+        <header class="sidebar-header">
+          <button id="sidebarClose" class="icon-button" type="button" aria-label="덱 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+          <button id="settingsOpen" class="icon-button" type="button" aria-label="설정 열기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.08A1.7 1.7 0 0 0 9 19.38a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.62 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.08A1.7 1.7 0 0 0 15 4.62a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.18.6.72 1 1.55 1H21a2 2 0 0 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="sidebar-tabs" role="tablist" aria-label="사이드바 메뉴">
+          <button id="deckTab" class="sidebar-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="deckTabPanel">
+            덱
+          </button>
+          <button id="cardTab" class="sidebar-tab" type="button" role="tab" aria-selected="false" aria-controls="cardTabPanel">
+            카드
+          </button>
+        </div>
+        <div class="sidebar-tab-panels">
+          <section id="deckTabPanel" class="sidebar-tab-panel" role="tabpanel" aria-labelledby="deckTab">
+            <div id="savedList" class="saved-list"></div>
+          </section>
+          <section id="cardTabPanel" class="sidebar-tab-panel" role="tabpanel" aria-labelledby="cardTab" hidden>
+            <div class="label-filter-panel">
+              <h2>라벨</h2>
+              <div id="labelFilterList" class="label-filter-list"></div>
+            </div>
+          </section>
+        </div>
+        <div class="sidebar-actions">
+          <button id="newDeck" type="button" aria-label="새로운 덱 만들기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14"></path>
+              <path d="M5 12h14"></path>
+            </svg>
+            덱 만들기
+          </button>
+          <label class="sidebar-import-button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21V9"></path>
+              <path d="m7 14 5-5 5 5"></path>
+              <path d="M5 3h14"></path>
+            </svg>
+            불러오기
+            <input id="importSavedInput" type="file" accept=".json,application/json" />
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <div id="settingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+      <section class="settings-card">
+        <header class="settings-header">
+          <button id="settingsClose" class="settings-back-button" type="button" aria-label="설정 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 18-6-6 6-6"></path>
+            </svg>
+          </button>
+          <h2 id="settingsTitle">설정</h2>
+          <span aria-hidden="true"></span>
+        </header>
+        <div class="settings-body">
+          <div class="settings-group">
+            <button id="displayModeOpen" class="settings-row" type="button">
+              <span>
+                <strong>표시 방식</strong>
+                <small>카드를 스크롤로 볼지 페이지로 나눠 볼지 선택합니다.</small>
+              </span>
+              <span class="settings-trailing">
+                <strong id="displayModeValue" class="settings-value">스크롤</strong>
+                <svg class="settings-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6"></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+
+          <div class="settings-group">
+            <button class="settings-row" type="button">
+              <strong>도움말</strong>
+              <svg class="settings-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+            </button>
+            <div class="settings-row">
+              <span>
+                <strong>버전</strong>
+                <small>현재 1.0.0 / 최신 1.0.0</small>
+              </span>
+              <button class="settings-update" type="button" disabled>업데이트</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div
+      id="importModal"
+      class="import-screen"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="importModalTitle"
+      hidden
+    >
+      <article class="import-screen-card">
+        <header class="import-screen-header">
+          <h2 id="importModalTitle">가져오기 설정</h2>
+          <button id="importClose" class="icon-button" type="button" aria-label="가져오기 설정 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <section class="import-screen-body" aria-label="파일 및 카드 설정">
+          <div class="file-row">
+            <label class="file-picker">
+              <input
+                id="fileInput"
+                type="file"
+                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/comma-separated-values,application/csv,text/plain"
+              />
+              <span class="file-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12"></path>
+                  <path d="m7 8 5-5 5 5"></path>
+                  <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>
+                </svg>
+                파일 선택
+              </span>
+            </label>
+            <span id="fileName" class="file-name">엑셀 파일을 선택하세요.</span>
+          </div>
+
+          <div class="control-grid">
+            <label class="field">
+              <span>시트</span>
+              <button id="sheetSelect" class="select-button" type="button" disabled></button>
+            </label>
+            <label class="field">
+              <span>표 시작 행</span>
+              <button id="headerRowSelect" class="select-button" type="button" disabled></button>
+            </label>
+            <label class="field">
+              <span>카드 제목 열</span>
+              <button id="titleColumnSelect" class="select-button" type="button" disabled></button>
+            </label>
+            <label class="field">
+              <span>부제목 열 1</span>
+              <button id="subtitleColumn1Select" class="select-button" type="button" disabled></button>
+            </label>
+            <label class="field">
+              <span>부제목 열 2</span>
+              <button id="subtitleColumn2Select" class="select-button" type="button" disabled></button>
+            </label>
+            <div class="field display-columns-field">
+              <span>표시할 열</span>
+              <button id="displayColumnsOpen" class="control-button" type="button" disabled>
+                표시할 열 선택
+              </button>
+              <span id="displayColumnsSummary" class="field-hint">0개 선택</span>
+            </div>
+          </div>
+        </section>
+        <footer class="import-screen-actions">
+          <button id="importCancel" class="secondary-action" type="button">취소</button>
+          <button id="importApply" class="primary-action" type="button">적용</button>
+        </footer>
+      </article>
+    </div>
+
+    <div
+      id="displayColumnsModal"
+      class="modal centered-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="displayColumnsModalTitle"
+      hidden
+    >
+      <div class="modal-backdrop" data-close-display-columns></div>
+      <article class="modal-card">
+        <header class="modal-header">
+          <h2 id="displayColumnsModalTitle">표시할 열</h2>
+          <button id="displayColumnsClose" class="icon-button" type="button" aria-label="표시할 열 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="display-columns-toolbar">
+          <label class="select-all-option">
+            <input id="displayColumnsAll" type="checkbox" disabled />
+            <span>전체 선택</span>
+          </label>
+          <span id="displayColumnsCount">0 / 0개 선택</span>
+        </div>
+        <div id="displayColumnsList" class="checkbox-list modal-checkbox-list" aria-label="카드에 표시할 열"></div>
+        <footer class="modal-footer-actions">
+          <button id="displayColumnsCancel" class="secondary-action" type="button">취소</button>
+          <button id="displayColumnsConfirm" class="primary-action" type="button">확인</button>
+        </footer>
+      </article>
+    </div>
+
+    <div
+      id="selectModal"
+      class="modal centered-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="selectModalTitle"
+      hidden
+    >
+      <div class="modal-backdrop" data-close-select-modal></div>
+      <article class="modal-card select-modal-card">
+        <header class="modal-header">
+          <h2 id="selectModalTitle">선택</h2>
+          <button id="selectModalClose" class="icon-button" type="button" aria-label="선택 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <label id="selectModalSearchField" class="select-modal-search-field" hidden>
+          <span class="visually-hidden">선택 항목 검색</span>
+          <input id="selectModalSearch" type="search" placeholder="검색" />
+        </label>
+        <div id="selectModalList" class="select-option-list"></div>
+        <footer id="selectModalActions" class="modal-footer-actions" hidden>
+          <button id="selectModalCancel" class="secondary-action" type="button">취소</button>
+          <button id="selectModalApply" class="primary-action" type="button">확인</button>
+        </footer>
+      </article>
+    </div>
+
+    <div
+      id="displayModeModal"
+      class="modal centered-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="displayModeModalTitle"
+      hidden
+    >
+      <div class="modal-backdrop" data-close-display-mode></div>
+      <article class="modal-card display-mode-card">
+        <header class="modal-header">
+          <h2 id="displayModeModalTitle">표시 방식</h2>
+          <button id="displayModeClose" class="icon-button" type="button" aria-label="표시 방식 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="radio-option-list">
+          <label class="radio-option">
+            <input type="radio" name="displayMode" value="scroll" />
+            <span>
+              <strong>스크롤</strong>
+              <small>목록을 내리면 카드가 계속 추가로 표시됩니다.</small>
+            </span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="displayMode" value="page" />
+            <span>
+              <strong>페이지</strong>
+              <small>카드를 일정 개수씩 나눠 이전/다음으로 이동합니다.</small>
+            </span>
+          </label>
+        </div>
+      </article>
+    </div>
+
+    <div
+      id="detailModal"
+      class="modal centered-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalTitle"
+      hidden
+    >
+      <div class="modal-backdrop" data-close-modal></div>
+      <article class="modal-card detail-modal-card">
+        <header class="modal-header">
+          <button id="modalTitle" class="detail-title-copy" type="button"></button>
+          <button id="modalClose" class="icon-button" type="button" aria-label="상세보기 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div id="modalContent" class="modal-content"></div>
+      </article>
+    </div>
+    <div id="copyToast" class="copy-toast" role="status" aria-live="polite" hidden>
+      복사되었습니다.
+    </div>
+  </body>
+</html>
