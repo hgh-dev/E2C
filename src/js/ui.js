@@ -1,3 +1,11 @@
+/* ==========================================================================
+   [모듈] UI 파사드 (ui.js)
+   [역할]
+   - DOM 요소를 한 곳에서 수집하고 renderer/modal 모듈을 기존 API로 연결합니다.
+   - 앱의 다른 컨트롤러가 사용하는 UI 함수 이름을 유지하는 진입점입니다.
+   [참고]
+   - 새 UI 모듈을 분리하더라도 외부 호출부는 이 파일의 export를 우선 확인합니다.
+   ========================================================================== */
 import {
   escapeHTML,
   getDisplayTitle,
@@ -5,6 +13,57 @@ import {
   normalizeValue,
   recommendTitleColumn,
 } from "./utils.js";
+import { renderCards as renderCardList } from "./cardRenderer.js";
+import {
+  closeSidebar as closeSidebarPanel,
+  openSidebar as openSidebarPanel,
+  renderDeckList as renderSidebarDeckList,
+  renderLabelFilters as renderSidebarLabelFilters,
+  setSidebarTab as setSidebarPanelTab,
+} from "./sidebarRenderer.js";
+import {
+  closeDisplayColumnsModal as closeDisplayColumnsModalPanel,
+  closeDisplayModeModal as closeDisplayModeModalPanel,
+  closeFilterPanel as closeFilterPanelView,
+  closeImportModal as closeImportModalPanel,
+  closeLabelPalette as closeLabelPalettePanel,
+  closeSearchPanel as closeSearchPanelView,
+  closeSettingsModal as closeSettingsModalPanel,
+  closeSortPanel as closeSortPanelView,
+  openDisplayColumnsModal as openDisplayColumnsModalPanel,
+  openDisplayModeModal as openDisplayModeModalPanel,
+  openFilterPanel as openFilterPanelView,
+  openImportModal as openImportModalPanel,
+  openLabelPalette as openLabelPalettePanel,
+  openSearchPanel as openSearchPanelView,
+  openSettingsModal as openSettingsModalPanel,
+  openSortPanel as openSortPanelView,
+  toggleFilterPanel as toggleFilterPanelView,
+  toggleSearchPanel as toggleSearchPanelView,
+  toggleSortPanel as toggleSortPanelView,
+} from "./modalUi.js";
+import {
+  getAllSelectableDisplayColumns as getAllSelectableDisplayColumnsFromState,
+  getDisplayColumnCheckboxValues as getDisplayColumnValues,
+  getSelectedDisplayColumns as getSelectedDisplayColumnsFromState,
+  renderControls as renderImportControls,
+  setDisplayColumnCheckboxValues as setDisplayColumnValues,
+  syncDisplayColumnsModalSummary as syncDisplayColumnSummary,
+} from "./controlsRenderer.js";
+import {
+  closeSelectModal,
+  getMultiSelectLabel,
+  populateSelect,
+  setupSelectModalTriggers as setupSelectModalController,
+} from "./selectModal.js";
+import {
+  renderDisplayModeControl as renderDisplayModeControlView,
+  renderFilterSortControls as renderFilterSortControlsView,
+  renderPageControls as renderPageControlsView,
+  renderSearchControl as renderSearchControlView,
+} from "./viewControlsRenderer.js";
+
+export { closeSelectModal, populateSelect };
 
 const elements = {
   sidebarOpen: document.querySelector("#sidebarOpen"),
@@ -29,6 +88,12 @@ const elements = {
   displayModeModal: document.querySelector("#displayModeModal"),
   displayModeClose: document.querySelector("#displayModeClose"),
   displayModeInputs: document.querySelectorAll("input[name='displayMode']"),
+  googleDriveDetail: document.querySelector("#googleDriveDetail"),
+  googleDriveConnect: document.querySelector("#googleDriveConnect"),
+  googleDriveBackup: document.querySelector("#googleDriveBackup"),
+  googleDriveRestore: document.querySelector("#googleDriveRestore"),
+  googleDriveSync: document.querySelector("#googleDriveSync"),
+  googleDriveOperationStatus: document.querySelector("#googleDriveOperationStatus"),
   savedList: document.querySelector("#savedList"),
   newDeck: document.querySelector("#newDeck"),
   importSavedInput: document.querySelector("#importSavedInput"),
@@ -57,8 +122,8 @@ const elements = {
   displayColumnsClose: document.querySelector("#displayColumnsClose"),
   filterList: document.querySelector("#filterList"),
   addFilter: document.querySelector("#addFilter"),
-  sortColumnSelect: document.querySelector("#sortColumnSelect"),
-  sortDirectionSelect: document.querySelector("#sortDirectionSelect"),
+  sortList: document.querySelector("#sortList"),
+  addSort: document.querySelector("#addSort"),
   filterOpen: document.querySelector("#filterOpen"),
   filterPanel: document.querySelector("#filterPanel"),
   filterClose: document.querySelector("#filterClose"),
@@ -100,12 +165,7 @@ const elements = {
   copyToast: document.querySelector("#copyToast"),
 };
 
-let activeSelect = null;
-let activeSelectOptions = [];
-let activeSelectSearchable = false;
-let pendingSelectValues = [];
 let copyToastTimer = null;
-const EMPTY_FILTER_VALUE = "__E2C_EMPTY_VALUE__";
 
 export const LABEL_OPTIONS = [
   { value: "red", label: "빨간색", color: "#ef4444" },
@@ -125,6 +185,11 @@ const importOpenIcons = {
   `,
 };
 
+/**
+ * [함수] getSelectModalTargets
+ * [역할] 중앙 선택 모달로 대체할 선택 버튼 목록을 반환한다.
+ * [원리] 가져오기/검색/정렬 관련 select-button 요소만 모아 null 요소를 제거한다.
+ */
 function getSelectModalTargets() {
   return [
     elements.sheetSelect,
@@ -132,506 +197,114 @@ function getSelectModalTargets() {
     elements.titleColumnSelect,
     elements.subtitleColumn1Select,
     elements.subtitleColumn2Select,
-    elements.sortColumnSelect,
-    elements.sortDirectionSelect,
     elements.searchColumnSelect,
   ].filter(Boolean);
 }
 
+/**
+ * [함수] getElements
+ * [역할] 앱 전체에서 공유하는 DOM 요소 참조 묶음을 반환한다.
+ * [원리] 파일 로드 시 수집한 elements 객체를 그대로 노출해 컨트롤러가 재사용하게 한다.
+ */
 export function getElements() {
   return elements;
 }
 
+/**
+ * [함수] setupSelectModalTriggers
+ * [역할] 드롭다운처럼 보이는 버튼이 중앙 선택 모달을 열도록 연결한다.
+ * [원리] ui.js가 가진 대상 목록을 selectModal 컨트롤러에 전달한다.
+ */
 export function setupSelectModalTriggers() {
-  getSelectModalTargets().forEach((control) => {
-    control.addEventListener("click", (event) => {
-      if (control.disabled) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      openSelectModal(control);
-    });
-
-    control.addEventListener("keydown", (event) => {
-      if (control.disabled || !["Enter", " ", "ArrowDown"].includes(event.key)) return;
-
-      event.preventDefault();
-      openSelectModal(control);
-    });
-  });
-
-  elements.selectModalClose.addEventListener("click", closeSelectModal);
-  elements.selectModalCancel.addEventListener("click", closeSelectModal);
-  elements.selectModalApply.addEventListener("click", applyMultiSelectModal);
-  document.querySelector("[data-close-select-modal]").addEventListener("click", closeSelectModal);
-  elements.selectModalList.addEventListener("click", handleSelectModalChoice);
-  elements.selectModalSearch.addEventListener("input", () => {
-    renderSelectModalOptions(elements.selectModalSearch.value);
-  });
-  elements.filterList.addEventListener("click", (event) => {
-    const control = event.target.closest("[data-dynamic-select]");
-    if (!control || control.disabled) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    openSelectModal(control);
-  });
-  elements.filterList.addEventListener("keydown", (event) => {
-    const control = event.target.closest("[data-dynamic-select]");
-    if (!control || control.disabled || !["Enter", " ", "ArrowDown"].includes(event.key)) return;
-
-    event.preventDefault();
-    openSelectModal(control);
-  });
+  setupSelectModalController(elements, getSelectModalTargets());
 }
 
-export function populateSelect(control, options, selectedValue = "", includeEmpty = null) {
-  const normalizedOptions = includeEmpty ? [includeEmpty, ...options] : options;
-  const selectOptions = normalizedOptions.map((option) => ({
-    value: typeof option === "string" ? option : option.value,
-    label: typeof option === "string" ? option : option.label,
-    preview: typeof option === "string" ? "" : option.preview || "",
-    disabled: typeof option === "string" ? false : Boolean(option.disabled),
-  }));
-  const selectedOption =
-    selectOptions.find((option) => option.value === selectedValue) || selectOptions[0] || {
-      value: "",
-      label: "",
-      preview: "",
-    };
-
-  control.selectOptions = selectOptions;
-  control.value = selectedOption.value;
-  control.textContent = selectedOption.label || "선택";
-}
-
-export function openSelectModal(control) {
-  activeSelect = control;
-  activeSelectOptions = control.selectOptions || [];
-  activeSelectSearchable = control.dataset.filterField === "value";
-  pendingSelectValues = activeSelectSearchable
-    ? control.selectedValues?.length
-      ? [...control.selectedValues]
-      : getAllSelectableFilterValues()
-    : [];
-  const label = control.closest(".field")?.querySelector("span")?.textContent || "선택";
-
-  elements.selectModalTitle.textContent = label;
-  elements.selectModal.classList.toggle("is-multi-select", activeSelectSearchable);
-  elements.selectModalSearchField.hidden = !activeSelectSearchable;
-  elements.selectModalActions.hidden = !activeSelectSearchable;
-  elements.selectModalSearch.value = "";
-  renderSelectModalOptions("");
-  elements.selectModal.hidden = false;
-
-  if (activeSelectSearchable) {
-    elements.selectModalSearch.focus();
-    return;
-  }
-
-  const selectedOption = elements.selectModalList.querySelector(".select-option.selected");
-  if (selectedOption) {
-    selectedOption.focus();
-    selectedOption.scrollIntoView({ block: "nearest" });
-    return;
-  }
-
-  elements.selectModalClose.focus();
-}
-
-function renderSelectModalOptions(searchTerm = "") {
-  const normalizedSearchTerm = normalizeValue(searchTerm).toLowerCase();
-  const baseOptions = activeSelectSearchable ? activeSelectOptions.slice(1) : activeSelectOptions;
-  const allSelectableValues = getAllSelectableFilterValues();
-  const searchedOptions = activeSelectSearchable
-    ? baseOptions.filter(
-        (option) =>
-          !normalizedSearchTerm ||
-          (option.value !== EMPTY_FILTER_VALUE &&
-            `${option.label} ${option.preview}`.toLowerCase().includes(normalizedSearchTerm)),
-      )
-    : activeSelectOptions;
-  const searchResultValues = getSearchResultValues(normalizedSearchTerm);
-  const allSearchResultsSelected =
-    normalizedSearchTerm &&
-    searchResultValues.length > 0 &&
-    searchResultValues.every((value) => pendingSelectValues.includes(value));
-  const options =
-    activeSelectSearchable && normalizedSearchTerm
-      ? [
-          {
-            value: "__E2C_SELECT_SEARCH_RESULTS__",
-            label: "모든 검색 결과 선택",
-            preview: `${searchedOptions.filter((option) => option.value !== EMPTY_FILTER_VALUE).length}개 항목`,
-          },
-          ...searchedOptions,
-        ]
-      : activeSelectSearchable
-        ? activeSelectOptions
-        : searchedOptions;
-
-  elements.selectModalList.innerHTML = options.length
-    ? options
-        .map((option) => {
-          const selected = activeSelectSearchable
-            ? option.value === "__E2C_SELECT_SEARCH_RESULTS__"
-              ? allSearchResultsSelected
-                ? " selected"
-                : ""
-              : option.value === ""
-                ? pendingSelectValues.length === allSelectableValues.length
-                  ? " selected"
-                  : ""
-                : pendingSelectValues.includes(option.value)
-              ? " selected"
-              : ""
-            : option.value === activeSelect.value
-              ? " selected"
-              : "";
-          const preview = option.preview;
-          const disabled = option.disabled ? " disabled" : "";
-          return `
-            <button class="select-option${selected}" type="button" data-select-value="${escapeHTML(option.value)}" ${disabled}>
-              <span class="select-option-title">${escapeHTML(option.label)}</span>
-              ${preview ? `<span class="select-option-preview">${escapeHTML(preview)}</span>` : ""}
-            </button>
-          `;
-        })
-        .join("")
-    : '<div class="select-option-empty">검색 결과가 없습니다.</div>';
-}
-
-export function closeSelectModal() {
-  elements.selectModal.hidden = true;
-  elements.selectModal.classList.remove("is-multi-select");
-  activeSelect = null;
-  activeSelectOptions = [];
-  activeSelectSearchable = false;
-  pendingSelectValues = [];
-  elements.selectModalActions.hidden = true;
-}
-
-function handleSelectModalChoice(event) {
-  const optionButton = event.target.closest("[data-select-value]");
-  if (!optionButton || !activeSelect) return;
-  if (optionButton.disabled) return;
-
-  if (activeSelectSearchable) {
-    handleMultiSelectChoice(optionButton.dataset.selectValue);
-    return;
-  }
-
-  activeSelect.value = optionButton.dataset.selectValue;
-  activeSelect.textContent =
-    activeSelect.selectOptions?.find((option) => option.value === activeSelect.value)?.label || "선택";
-  activeSelect.dispatchEvent(new Event("change", { bubbles: true }));
-  closeSelectModal();
-}
-
-function handleMultiSelectChoice(value) {
-  if (value === "") {
-    const allSelectableValues = getAllSelectableFilterValues();
-    const allSelected = allSelectableValues.every((selectableValue) =>
-      pendingSelectValues.includes(selectableValue),
-    );
-    pendingSelectValues = allSelected ? [] : allSelectableValues;
-    renderSelectModalOptions(elements.selectModalSearch.value);
-    return;
-  }
-
-  if (value === "__E2C_SELECT_SEARCH_RESULTS__") {
-    const searchTerm = normalizeValue(elements.selectModalSearch.value).toLowerCase();
-    const searchValues = getSearchResultValues(searchTerm);
-    const selectedSet = new Set(pendingSelectValues);
-    const allSelected = searchValues.length > 0 && searchValues.every((searchValue) => selectedSet.has(searchValue));
-
-    if (allSelected) {
-      searchValues.forEach((searchValue) => selectedSet.delete(searchValue));
-    } else {
-      searchValues.forEach((searchValue) => selectedSet.add(searchValue));
-    }
-
-    pendingSelectValues = [...selectedSet];
-    renderSelectModalOptions(elements.selectModalSearch.value);
-    return;
-  }
-
-  const selectedSet = new Set(pendingSelectValues);
-  if (selectedSet.has(value)) {
-    selectedSet.delete(value);
-  } else {
-    selectedSet.add(value);
-  }
-  pendingSelectValues = [...selectedSet];
-  renderSelectModalOptions(elements.selectModalSearch.value);
-}
-
-function getSearchResultValues(searchTerm) {
-  if (!searchTerm) return [];
-
-  return activeSelectOptions
-    .filter(
-      (option) =>
-        option.value &&
-        option.value !== EMPTY_FILTER_VALUE &&
-        `${option.label} ${option.preview}`.toLowerCase().includes(searchTerm),
-    )
-    .map((option) => option.value);
-}
-
-function getAllSelectableFilterValues() {
-  return activeSelectOptions
-    .filter((option) => option.value && !option.disabled)
-    .map((option) => option.value);
-}
-
-function applyMultiSelectModal() {
-  if (!activeSelect || !activeSelectSearchable) return;
-
-  const allSelectableValues = getAllSelectableFilterValues();
-  const valuesToApply =
-    pendingSelectValues.length === allSelectableValues.length ? [] : [...pendingSelectValues];
-  activeSelect.selectedValues = valuesToApply;
-  activeSelect.value = valuesToApply[0] || "";
-  activeSelect.textContent = getMultiSelectLabel(activeSelect.selectOptions || [], valuesToApply);
-  activeSelect.dispatchEvent(new Event("change", { bubbles: true }));
-  closeSelectModal();
-}
-
+/**
+ * [함수] renderControls
+ * [역할] 가져오기 설정 화면의 컨트롤을 렌더링한다.
+ * [원리] controlsRenderer에 DOM 요소와 제목열 계산 함수를 넘겨 실제 렌더링을 위임한다.
+ */
 export function renderControls(state) {
-  const hasColumns = state.columns.length > 0;
-  const hasWorkbook = state.sheetNames.length > 0;
-
-  elements.fileName.textContent = state.fileName || "엑셀 파일을 선택하세요.";
-
-  populateSelect(elements.sheetSelect, state.sheetNames, state.activeSheetName);
-  elements.sheetSelect.disabled = !hasWorkbook;
-
-  const headerRowOptions = getHeaderRowOptions(state.sheetMatrix);
-  populateSelect(elements.headerRowSelect, headerRowOptions, String(state.headerRowIndex));
-  elements.headerRowSelect.disabled = headerRowOptions.length === 0;
-
-  const columnOptions = getColumnOptions(state.columns, state.rows);
-
-  populateSelect(elements.titleColumnSelect, columnOptions, state.titleColumn);
-  elements.titleColumnSelect.disabled = !hasColumns;
-
-  populateSelect(elements.subtitleColumn1Select, columnOptions, state.subtitleColumn1, {
-    value: "",
-    label: "사용 안 함",
+  renderImportControls({
+    elements,
+    state,
+    populateSelect,
+    getTitleColumns,
+    syncDisplayColumnsModalSummary,
   });
-  elements.subtitleColumn1Select.disabled = !hasColumns;
-
-  populateSelect(elements.subtitleColumn2Select, columnOptions, state.subtitleColumn2, {
-    value: "",
-    label: "사용 안 함",
-  });
-  elements.subtitleColumn2Select.disabled = !hasColumns;
-
-  renderDisplayColumnOptions(state);
-
 }
 
+/**
+ * [함수] renderFilterSortControls
+ * [역할] 필터/정렬 팝업의 상태를 렌더링한다.
+ * [원리] viewControlsRenderer에 선택 모달 헬퍼와 패널 닫기 함수를 함께 전달한다.
+ */
 export function renderFilterSortControls(state) {
-  const hasColumns = state.columns.length > 0;
-  const filters = getStateFilters(state);
-  const hasActiveFilter = filters.some((filter) => filter.column && filter.values.length > 0);
-  const hasActiveSort = Boolean(state.sortColumn);
-
-  elements.filterOpen.disabled = !hasColumns;
-  elements.filterOpen.classList.toggle("active", hasActiveFilter);
-  elements.sortOpen.disabled = !hasColumns;
-  elements.sortOpen.classList.toggle("active", hasActiveSort);
-
-  const columnOptions = getColumnOptions(state.columns, state.rows);
-
-  renderFilterRows(state, filters, columnOptions, hasColumns);
-
-  populateSelect(elements.sortColumnSelect, columnOptions, state.sortColumn, {
-    value: "",
-    label: "사용 안 함",
+  renderFilterSortControlsView({
+    elements,
+    state,
+    populateSelect,
+    getMultiSelectLabel,
+    closeFilterPanel,
+    closeSortPanel,
   });
-  elements.sortColumnSelect.disabled = !hasColumns;
-  populateSelect(
-    elements.sortDirectionSelect,
-    [
-      { value: "asc", label: "오름차순" },
-      { value: "desc", label: "내림차순" },
-      { value: "random", label: "무작위" },
-    ],
-    state.sortDirection,
-  );
-  elements.sortDirectionSelect.disabled = !hasColumns || !state.sortColumn;
-
-  if (!hasColumns) {
-    closeFilterPanel();
-    closeSortPanel();
-  }
 }
 
-function getStateFilters(state) {
-  const filters = Array.isArray(state.filters) ? state.filters : [];
-  if (Array.isArray(state.filters)) {
-    return filters.map((filter) => ({
-      column: filter.column || "",
-      value: filter.value || "",
-      values: normalizeFilterValues(filter),
-    }));
-  }
-
-  return [
-    {
-      column: state.filterColumn || "",
-      value: state.filterValue || "",
-      values: state.filterValue ? [state.filterValue] : [],
-    },
-  ];
-}
-
-function renderFilterRows(state, filters, columnOptions, hasColumns) {
-  const normalizedFilters = filters;
-  elements.filterList.innerHTML = normalizedFilters.length
-    ? normalizedFilters
-    .map((filter, index) => {
-      return `
-        <div class="filter-row" data-filter-index="${index}">
-          <div class="filter-row-header">
-            <strong>필터${index + 1}</strong>
-            <button class="filter-remove-button" type="button" data-filter-remove="${index}" aria-label="필터${index + 1} 삭제">삭제</button>
-          </div>
-          <div class="filter-row-controls">
-            <label class="field">
-              <span>필터 열</span>
-              <button class="select-button" type="button" data-dynamic-select data-filter-field="column" data-filter-index="${index}" ${
-                hasColumns ? "" : "disabled"
-              }></button>
-            </label>
-            <label class="field">
-              <span>필터 값</span>
-              <button class="select-button" type="button" data-dynamic-select data-filter-field="value" data-filter-index="${index}" ${
-                hasColumns && filter.column ? "" : "disabled"
-              }></button>
-            </label>
-          </div>
-        </div>
-      `;
-    })
-    .join("")
-    : '<div class="filter-empty">필터가 없습니다.</div>';
-
-  elements.filterList.querySelectorAll("[data-filter-field='column']").forEach((control) => {
-    const index = Number(control.dataset.filterIndex);
-    const selectedColumns = new Set(
-      normalizedFilters
-        .map((filter, filterIndex) => (filterIndex === index ? "" : filter.column))
-        .filter(Boolean),
-    );
-    const rowColumnOptions = columnOptions.map((option) => ({
-      ...option,
-      disabled: Boolean(option.value && selectedColumns.has(option.value)),
-      preview: option.value && selectedColumns.has(option.value) ? "이미 선택된 필터 열" : option.preview,
-    }));
-    populateSelect(control, rowColumnOptions, normalizedFilters[index]?.column || "", {
-      value: "",
-      label: "사용 안 함",
-    });
-    control.disabled = !hasColumns;
-  });
-
-  elements.filterList.querySelectorAll("[data-filter-field='value']").forEach((control) => {
-    const index = Number(control.dataset.filterIndex);
-    const column = normalizedFilters[index]?.column || "";
-    const filterValues = column
-      ? [
-          {
-            value: EMPTY_FILTER_VALUE,
-            label: "값 없음",
-            preview: `${getEmptyFilterValueCount(state.rows, column)}개 카드`,
-          },
-          ...getFilterValueOptions(state.rows, column),
-        ]
-      : [];
-    populateSelect(control, filterValues, normalizedFilters[index]?.value || "", {
-      value: "",
-      label: "전체",
-    });
-    const selectedValues = normalizedFilters[index]?.values || [];
-    control.selectedValues = [...selectedValues];
-    control.value = selectedValues[0] || "";
-    control.textContent = getMultiSelectLabel(control.selectOptions || [], selectedValues);
-    control.disabled = !hasColumns || !column;
-  });
-
-  elements.addFilter.disabled = !hasColumns;
-}
-
+/**
+ * [함수] renderSearchControl
+ * [역할] 검색 바텀시트와 검색 버튼 상태를 렌더링한다.
+ * [원리] 검색 열 선택 옵션은 populateSelect로 만들고 패널 닫기는 공통 UI 함수로 처리한다.
+ */
 export function renderSearchControl(state) {
-  const hasColumns = state.columns.length > 0;
-  const columnOptions = getColumnOptions(state.columns, state.rows);
-  populateSelect(elements.searchColumnSelect, columnOptions, state.searchColumn, {
-    value: "",
-    label: "전체 열",
+  renderSearchControlView({
+    elements,
+    state,
+    populateSelect,
+    closeSearchPanel,
   });
-  elements.searchColumnSelect.disabled = !hasColumns;
-  elements.searchInput.disabled = !hasColumns;
-  elements.floatingSearchButton.disabled = !hasColumns;
-  elements.floatingSearchButton.classList.toggle(
-    "has-search",
-    Boolean(state.searchTerm.trim() || state.searchColumn),
-  );
-  elements.searchInput.value = state.searchTerm;
-
-  if (!hasColumns) {
-    closeSearchPanel();
-  }
 }
 
+/**
+ * [함수] renderDisplayModeControl
+ * [역할] 가져오기 설정의 표시 방식 UI를 현재 state로 갱신한다.
+ * [원리] viewControlsRenderer의 표시 방식 렌더러에 elements와 state를 전달한다.
+ */
 export function renderDisplayModeControl(state) {
-  const mode = state.displayMode || "scroll";
-  elements.displayModeValue.textContent = mode === "page" ? "페이지" : "스크롤";
-  elements.displayModeInputs.forEach((input) => {
-    input.checked = input.value === mode;
-  });
+  renderDisplayModeControlView(elements, state);
 }
 
+/**
+ * [함수] openDisplayModeModal
+ * [역할] 표시 방식 선택 모달을 연다.
+ * [원리] modalUi의 모달 열기 함수에 공통 elements 객체를 전달한다.
+ */
 export function openDisplayModeModal() {
-  elements.displayModeModal.hidden = false;
-  elements.displayModeModal.querySelector("input[name='displayMode']:checked")?.focus();
+  openDisplayModeModalPanel(elements);
 }
 
+/**
+ * [함수] closeDisplayModeModal
+ * [역할] 표시 방식 선택 모달을 닫는다.
+ * [원리] modalUi의 모달 닫기 함수에 공통 elements 객체를 전달한다.
+ */
 export function closeDisplayModeModal() {
-  elements.displayModeModal.hidden = true;
+  closeDisplayModeModalPanel(elements);
 }
 
+/**
+ * [함수] renderPageControls
+ * [역할] 페이지 방식 하단 컨트롤을 렌더링한다.
+ * [원리] 페이지 관련 계산과 DOM 갱신은 viewControlsRenderer로 위임한다.
+ */
 export function renderPageControls(state, totalRows, currentPage, pageSize) {
-  const isPageMode = state.displayMode === "page";
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-
-  elements.pageControls.hidden = !isPageMode || totalRows === 0;
-  elements.pageNumbers.innerHTML = getVisiblePageNumbers(currentPage, totalPages)
-    .map((page) => {
-      const activeClass = page === currentPage ? " active" : "";
-      return `<button class="page-number${activeClass}" type="button" data-page="${page}" aria-label="${page} 페이지">${page}</button>`;
-    })
-    .join("");
-  elements.pageFirst.disabled = currentPage <= 1;
-  elements.pagePrev.disabled = getPageGroupStart(currentPage) <= 1;
-  elements.pageNext.disabled = getPageGroupStart(currentPage) + 5 > totalPages;
-  elements.pageLast.disabled = currentPage >= totalPages;
+  renderPageControlsView(elements, state, totalRows, currentPage, pageSize);
 }
 
-function getVisiblePageNumbers(currentPage, totalPages) {
-  const visibleCount = 5;
-  const start = getPageGroupStart(currentPage);
-  const end = Math.min(totalPages, start + visibleCount - 1);
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
-
-function getPageGroupStart(page) {
-  return Math.floor((page - 1) / 5) * 5 + 1;
-}
-
+/**
+ * [함수] renderImportButton
+ * [역할] 상단 가져오기/수정 버튼의 표시와 사용 가능 여부를 갱신한다.
+ * [원리] 현재 정책에 맞춰 항상 수정 아이콘/문구를 쓰고 활성 덱이 없으면 비활성화한다.
+ */
 export function renderImportButton(state, hasActiveDeck = false) {
   elements.importOpenLabel.textContent = "수정";
   elements.importOpenIcon.innerHTML = importOpenIcons.edit;
@@ -642,261 +315,173 @@ export function renderImportButton(state, hasActiveDeck = false) {
   elements.importOpen.disabled = !hasActiveDeck;
 }
 
+/**
+ * [함수] renderDeckList
+ * [역할] 사이드바 덱 목록을 렌더링한다.
+ * [원리] sidebarRenderer에 덱 배열과 현재 선택 덱 id를 넘긴다.
+ */
 export function renderDeckList(decks, activeDeckId) {
-  elements.savedList.innerHTML = decks.length
-    ? decks
-        .map((deck) => {
-          const date = new Date(deck.updatedAt || deck.createdAt).toLocaleString("ko-KR", {
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          const activeClass = deck.id === activeDeckId ? " active" : "";
-          const rowCount = deck.data?.rows?.length || 0;
-          return `
-            <div class="saved-item${activeClass}" data-deck-id="${escapeHTML(deck.id)}">
-              <button class="saved-main" type="button" data-deck-select="${escapeHTML(deck.id)}">
-                <span class="saved-name">${escapeHTML(deck.name)}</span>
-                <span class="saved-meta">${escapeHTML(date)} · ${rowCount}개 카드</span>
-              </button>
-              <button class="deck-menu-button" type="button" data-deck-menu="${escapeHTML(deck.id)}" aria-label="덱 메뉴 열기">
-                <span></span>
-                <span></span>
-                <span></span>
-              </button>
-              <div class="deck-menu" data-deck-menu-panel="${escapeHTML(deck.id)}" hidden>
-                <button type="button" data-deck-action="rename" data-deck-id="${escapeHTML(deck.id)}">수정</button>
-                <button type="button" data-deck-action="export" data-deck-id="${escapeHTML(deck.id)}">내보내기</button>
-                <button type="button" data-deck-action="delete" data-deck-id="${escapeHTML(deck.id)}">삭제하기</button>
-              </div>
-            </div>
-          `;
-        })
-        .join("")
-    : '<div class="saved-empty">덱이 없습니다.</div>';
+  renderSidebarDeckList(elements, decks, activeDeckId);
 }
 
+/**
+ * [함수] renderLabelFilters
+ * [역할] 사이드바 카드 탭의 라벨 필터 목록을 렌더링한다.
+ * [원리] 공통 라벨 옵션과 현재 state를 sidebarRenderer로 전달한다.
+ */
 export function renderLabelFilters(state) {
-  const activeFilter = state.labelFilter || "";
-  const labelCounts = LABEL_OPTIONS.reduce((counts, option) => {
-    counts[option.value] = 0;
-    return counts;
-  }, {});
-  Object.values(state.labelMap || {}).forEach((labelValue) => {
-    if (labelCounts[labelValue] !== undefined) {
-      labelCounts[labelValue] += 1;
-    }
-  });
-  const totalLabelCount = Object.values(labelCounts).reduce((total, count) => total + count, 0);
-  const allActiveClass = activeFilter === "__all_labels" ? " active" : "";
-  elements.labelFilterList.innerHTML = `
-    ${LABEL_OPTIONS.map((option) => {
-      const activeClass = activeFilter === option.value ? " active" : "";
-      return `
-        <button class="label-filter-item${activeClass}" type="button" data-label-filter="${escapeHTML(option.value)}">
-          <span class="label-dot" style="--label-color: ${option.color}"></span>
-          <span>${escapeHTML(option.label)} (${labelCounts[option.value]})</span>
-        </button>
-      `;
-    }).join("")}
-    <button class="label-filter-item${allActiveClass}" type="button" data-label-filter="__all_labels">
-      <span class="label-all-icon" aria-hidden="true"></span>
-      <span>모든 라벨 (${totalLabelCount})</span>
-    </button>
-  `;
+  renderSidebarLabelFilters(elements, state, LABEL_OPTIONS);
 }
 
+/**
+ * [함수] openSidebar
+ * [역할] 사이드바를 연다.
+ * [원리] sidebarRenderer의 openSidebar 구현을 호출한다.
+ */
 export function openSidebar() {
-  elements.sidebar.hidden = false;
+  openSidebarPanel(elements);
 }
 
+/**
+ * [함수] closeSidebar
+ * [역할] 사이드바를 닫는다.
+ * [원리] sidebarRenderer의 closeSidebar 구현을 호출한다.
+ */
 export function closeSidebar() {
-  elements.sidebar.hidden = true;
+  closeSidebarPanel(elements);
 }
 
+/**
+ * [함수] setSidebarTab
+ * [역할] 사이드바의 덱/카드 탭을 전환한다.
+ * [원리] 탭 이름을 sidebarRenderer로 넘겨 active와 hidden 상태를 갱신한다.
+ */
 export function setSidebarTab(tabName) {
-  const isCardTab = tabName === "card";
-  elements.deckTab.classList.toggle("is-active", !isCardTab);
-  elements.cardTab.classList.toggle("is-active", isCardTab);
-  elements.deckTab.setAttribute("aria-selected", String(!isCardTab));
-  elements.cardTab.setAttribute("aria-selected", String(isCardTab));
-  elements.deckTabPanel.hidden = isCardTab;
-  elements.cardTabPanel.hidden = !isCardTab;
+  setSidebarPanelTab(elements, tabName);
 }
 
+/**
+ * [함수] openLabelPalette
+ * [역할] 카드 라벨 색상 팔레트를 연다.
+ * [원리] 클릭한 라벨 버튼 위치, rowKey, 현재 라벨 값을 modalUi로 전달한다.
+ */
 export function openLabelPalette(anchor, rowKey, selectedLabel = "") {
-  const rect = anchor.getBoundingClientRect();
-  elements.labelPalette.dataset.rowKey = rowKey;
-  elements.labelPaletteList.innerHTML = LABEL_OPTIONS.map((option) => {
-    const activeClass = selectedLabel === option.value ? " active" : "";
-    return `
-      <button class="label-palette-option${activeClass}" type="button" data-label-value="${escapeHTML(option.value)}" aria-label="${escapeHTML(option.label)}">
-        <span style="--label-color: ${option.color}"></span>
-      </button>
-    `;
-  }).join("");
-  elements.labelPalette.hidden = false;
-  const paletteRect = elements.labelPalette.getBoundingClientRect();
-  const left = Math.min(window.innerWidth - paletteRect.width - 10, Math.max(10, rect.right - paletteRect.width));
-  const top = Math.min(window.innerHeight - paletteRect.height - 10, rect.bottom + 8);
-  elements.labelPalette.style.left = `${left}px`;
-  elements.labelPalette.style.top = `${top}px`;
+  openLabelPalettePanel(elements, LABEL_OPTIONS, anchor, rowKey, selectedLabel);
 }
 
+/**
+ * [함수] closeLabelPalette
+ * [역할] 라벨 색상 팔레트를 닫는다.
+ * [원리] modalUi의 닫기 함수로 팔레트 hidden 상태를 갱신한다.
+ */
 export function closeLabelPalette() {
-  elements.labelPalette.hidden = true;
-  elements.labelPalette.dataset.rowKey = "";
+  closeLabelPalettePanel(elements);
 }
 
+/**
+ * [함수] openSettingsModal
+ * [역할] 전체 화면 설정 창을 연다.
+ * [원리] modalUi의 설정 모달 열기 함수를 호출한다.
+ */
 export function openSettingsModal() {
-  elements.settingsModal.hidden = false;
-  elements.settingsClose.focus();
+  openSettingsModalPanel(elements);
 }
 
+/**
+ * [함수] closeSettingsModal
+ * [역할] 전체 화면 설정 창을 닫는다.
+ * [원리] modalUi의 설정 모달 닫기 함수를 호출한다.
+ */
 export function closeSettingsModal() {
-  elements.settingsModal.hidden = true;
+  closeSettingsModalPanel(elements);
 }
 
+/**
+ * [함수] openSearchPanel
+ * [역할] 검색 바텀시트를 연다.
+ * [원리] 검색을 열 때 필터/정렬 패널은 닫히도록 닫기 함수를 함께 전달한다.
+ */
 export function openSearchPanel() {
-  if (elements.floatingSearchButton.disabled) return;
-
-  closeFilterPanel();
-  closeSortPanel();
-  elements.floatingSearchPanel.hidden = false;
-  elements.searchInput.focus();
+  openSearchPanelView(elements, closeFilterPanel, closeSortPanel);
 }
 
+/**
+ * [함수] closeSearchPanel
+ * [역할] 검색 바텀시트를 닫는다.
+ * [원리] modalUi의 검색 패널 닫기 함수를 호출한다.
+ */
 export function closeSearchPanel() {
-  elements.floatingSearchPanel.hidden = true;
+  closeSearchPanelView(elements);
 }
 
+/**
+ * [함수] toggleSearchPanel
+ * [역할] 검색 바텀시트 열림 상태를 토글한다.
+ * [원리] modalUi의 토글 함수에 열기/닫기 래퍼를 넘긴다.
+ */
 export function toggleSearchPanel() {
-  if (elements.floatingSearchPanel.hidden) {
-    openSearchPanel();
-    return;
-  }
-
-  closeSearchPanel();
+  toggleSearchPanelView(elements, openSearchPanel, closeSearchPanel);
 }
 
+/**
+ * [함수] openFilterPanel
+ * [역할] 필터 설정 모달을 연다.
+ * [원리] 필터를 열 때 검색/정렬 패널은 닫히도록 닫기 함수를 함께 전달한다.
+ */
 export function openFilterPanel() {
-  if (elements.filterOpen.disabled) return;
-
-  closeSearchPanel();
-  closeSortPanel();
-  elements.filterPanel.hidden = false;
-  elements.filterList.querySelector("[data-dynamic-select]")?.focus();
+  openFilterPanelView(elements, closeSearchPanel, closeSortPanel);
 }
 
+/**
+ * [함수] closeFilterPanel
+ * [역할] 필터 설정 모달을 닫는다.
+ * [원리] modalUi의 필터 패널 닫기 함수를 호출한다.
+ */
 export function closeFilterPanel() {
-  elements.filterPanel.hidden = true;
+  closeFilterPanelView(elements);
 }
 
+/**
+ * [함수] toggleFilterPanel
+ * [역할] 필터 설정 모달 열림 상태를 토글한다.
+ * [원리] modalUi의 토글 함수에 열기/닫기 래퍼를 넘긴다.
+ */
 export function toggleFilterPanel() {
-  if (elements.filterPanel.hidden) {
-    openFilterPanel();
-    return;
-  }
-
-  closeFilterPanel();
+  toggleFilterPanelView(elements, openFilterPanel, closeFilterPanel);
 }
 
+/**
+ * [함수] openSortPanel
+ * [역할] 정렬 설정 모달을 연다.
+ * [원리] 정렬을 열 때 검색/필터 패널은 닫히도록 닫기 함수를 함께 전달한다.
+ */
 export function openSortPanel() {
-  if (elements.sortOpen.disabled) return;
-
-  closeSearchPanel();
-  closeFilterPanel();
-  elements.sortPanel.hidden = false;
-  elements.sortColumnSelect.focus();
+  openSortPanelView(elements, closeSearchPanel, closeFilterPanel);
 }
 
+/**
+ * [함수] closeSortPanel
+ * [역할] 정렬 설정 모달을 닫는다.
+ * [원리] modalUi의 정렬 패널 닫기 함수를 호출한다.
+ */
 export function closeSortPanel() {
-  elements.sortPanel.hidden = true;
+  closeSortPanelView(elements);
 }
 
+/**
+ * [함수] toggleSortPanel
+ * [역할] 정렬 설정 모달 열림 상태를 토글한다.
+ * [원리] modalUi의 토글 함수에 열기/닫기 래퍼를 넘긴다.
+ */
 export function toggleSortPanel() {
-  if (elements.sortPanel.hidden) {
-    openSortPanel();
-    return;
-  }
-
-  closeSortPanel();
+  toggleSortPanelView(elements, openSortPanel, closeSortPanel);
 }
 
-function getHeaderRowOptions(matrix) {
-  return matrix
-    .map((row, index) => {
-      const preview = row
-        .map((cell) => normalizeValue(cell))
-        .filter(Boolean)
-        .slice(0, 4)
-        .join(" / ");
-      return {
-        value: String(index),
-        label: `${index + 1}행`,
-        preview: preview ? `${preview} / ...` : "",
-      };
-    })
-    .slice(0, 100);
-}
-
-function getColumnOptions(columns, rows) {
-  return columns.map((column) => ({
-    value: column,
-    label: column,
-    preview: getColumnPreview(rows, column),
-  }));
-}
-
-function getColumnPreview(rows, column) {
-  const values = rows
-    .map((row) => normalizeValue(row[column]))
-    .filter(Boolean);
-  const uniqueValues = [...new Set(values)].slice(0, 4);
-
-  return uniqueValues.length ? `${uniqueValues.join(" / ")} / ...` : "";
-}
-
-function getFilterValueOptions(rows, column) {
-  const counts = rows.reduce((map, row) => {
-    const value = normalizeValue(row[column]);
-    if (!value) return map;
-
-    map.set(value, (map.get(value) || 0) + 1);
-    return map;
-  }, new Map());
-
-  return [...counts.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, "ko"))
-    .map(([value, count]) => ({
-      value,
-      label: value,
-      preview: `${count}개 카드`,
-    }));
-}
-
-function getEmptyFilterValueCount(rows, column) {
-  return rows.filter((row) => normalizeValue(row[column]) === "").length;
-}
-
-function getMultiSelectLabel(options, values) {
-  if (!values.length) return "전체";
-  if (values.length === 1) {
-    return options.find((option) => option.value === values[0])?.label || "1개 선택";
-  }
-
-  return `${values.length}개 선택`;
-}
-
-function normalizeFilterValues(filter) {
-  if (Array.isArray(filter.values)) {
-    return filter.values.filter(Boolean);
-  }
-
-  return filter.value ? [filter.value] : [];
-}
-
+/**
+ * [함수] applyDefaultColumns
+ * [역할] 새 표를 읽었을 때 제목열, 표시열, 필터/정렬/검색 기본값을 설정한다.
+ * [원리] 열 이름 기반 추천 함수를 사용하고 표 구조가 바뀌면 이전 조건은 초기화한다.
+ */
 export function applyDefaultColumns(state) {
   state.titleColumn = recommendTitleColumn(state.columns);
   state.subtitleColumn1 = "";
@@ -905,6 +490,7 @@ export function applyDefaultColumns(state) {
   state.filterColumn = "";
   state.filterValue = "";
   state.filters = [{ column: "", value: "", values: [] }];
+  state.sorts = [];
   state.sortColumn = "";
   state.sortDirection = "asc";
   state.randomSortSeed = "";
@@ -912,6 +498,11 @@ export function applyDefaultColumns(state) {
   state.searchTerm = "";
 }
 
+/**
+ * [함수] renderCards
+ * [역할] 현재 조건에 맞는 행을 카드 목록으로 렌더링한다.
+ * [원리] cardRenderer에 라벨 옵션, 제목열 계산, 표시열 계산, 메시지 표시 함수를 주입한다.
+ */
 export function renderCards(
   state,
   visibleRows,
@@ -919,43 +510,25 @@ export function renderCards(
   startIndex = 0,
   totalCount = visibleRows.length,
 ) {
-  const rowsToRender = visibleRows.slice(0, renderedCount);
-  elements.cardCount.textContent = `${totalCount}개 카드`;
-
-  if (state.columns.length === 0 || state.rows.length === 0) {
-    showMessage("표시할 데이터가 없습니다.");
-    return;
-  }
-
-  if (visibleRows.length === 0) {
-    showMessage("조건에 맞는 카드가 없습니다.");
-    return;
-  }
-
-  elements.message.hidden = true;
-  elements.cardList.hidden = false;
-  elements.loadMoreSentinel.hidden =
-    state.displayMode === "page" || startIndex + rowsToRender.length >= totalCount;
-  const titleColumns = getTitleColumns(state);
-  const displayColumns = getSelectedDisplayColumns(state);
-
-  elements.cardList.innerHTML = rowsToRender
-    .map((row, index) => {
-      const visibleIndex = startIndex + index;
-      const rowKey = state.rows.indexOf(row);
-      return renderCard(
-        row,
-        visibleIndex,
-        rowKey,
-        titleColumns,
-        displayColumns,
-        state.columns,
-        state.labelMap?.[rowKey] || "",
-      );
-    })
-    .join("");
+  renderCardList({
+    elements,
+    state,
+    visibleRows,
+    renderedCount,
+    startIndex,
+    totalCount,
+    labelOptions: LABEL_OPTIONS,
+    getSelectedDisplayColumns,
+    getTitleColumns,
+    showMessage,
+  });
 }
 
+/**
+ * [함수] showMessage
+ * [역할] 카드 목록 영역에 안내 메시지를 표시한다.
+ * [원리] 메시지 영역을 보이고 카드 목록과 무한 스크롤 sentinel은 숨긴다.
+ */
 export function showMessage(text) {
   elements.message.textContent = text;
   elements.message.hidden = false;
@@ -964,6 +537,11 @@ export function showMessage(text) {
   elements.loadMoreSentinel.hidden = true;
 }
 
+/**
+ * [함수] openDetailModal
+ * [역할] 카드 상세 정보를 중앙 모달로 연다.
+ * [원리] 제목과 모든 열 값을 버튼 형태로 렌더링해 클릭 복사가 가능하게 한다.
+ */
 export function openDetailModal(row, state, rowIndex) {
   const title = getDisplayTitle(row, getTitleColumns(state), rowIndex);
   elements.modalTitle.textContent = title;
@@ -983,10 +561,20 @@ export function openDetailModal(row, state, rowIndex) {
   elements.modalClose.focus();
 }
 
+/**
+ * [함수] closeDetailModal
+ * [역할] 카드 상세 모달을 닫는다.
+ * [원리] detailModal hidden 상태만 true로 바꾼다.
+ */
 export function closeDetailModal() {
   elements.detailModal.hidden = true;
 }
 
+/**
+ * [함수] copyTextValue
+ * [역할] 상세 모달에서 클릭한 값을 클립보드에 복사한다.
+ * [원리] Clipboard API를 우선 사용하고 실패하면 textarea fallback으로 복사한 뒤 토스트를 띄운다.
+ */
 export async function copyTextValue(value) {
   const text = normalizeValue(value);
   if (!text || text === "-") return;
@@ -1000,6 +588,11 @@ export async function copyTextValue(value) {
   showCopyToast();
 }
 
+/**
+ * [함수] copyTextWithFallback
+ * [역할] Clipboard API를 사용할 수 없을 때 텍스트를 복사한다.
+ * [원리] 임시 textarea를 만들고 선택한 뒤 execCommand("copy")를 실행한다.
+ */
 function copyTextWithFallback(text) {
   const textarea = document.createElement("textarea");
   textarea.value = text;
@@ -1012,6 +605,11 @@ function copyTextWithFallback(text) {
   textarea.remove();
 }
 
+/**
+ * [함수] showCopyToast
+ * [역할] 복사 완료 알림을 짧게 표시한다.
+ * [원리] 기존 타이머를 지우고 1.4초 뒤 자동으로 숨기는 새 타이머를 등록한다.
+ */
 function showCopyToast() {
   window.clearTimeout(copyToastTimer);
   elements.copyToast.hidden = false;
@@ -1020,130 +618,92 @@ function showCopyToast() {
   }, 1400);
 }
 
-function getTitleColumns(state) {
+/**
+ * [함수] getTitleColumns
+ * [역할] 카드명에 사용할 제목열과 부제목열 목록을 반환한다.
+ * [원리] 빈 값은 제거하고 Set으로 중복 열을 한 번만 남긴다.
+ */
+export function getTitleColumns(state) {
   return [...new Set([state.titleColumn, state.subtitleColumn1, state.subtitleColumn2].filter(Boolean))];
 }
 
-function getSelectableDisplayColumns(state) {
-  const titleColumnSet = new Set(getTitleColumns(state));
-  return state.columns.filter((column) => !titleColumnSet.has(column));
-}
-
+/**
+ * [함수] getSelectedDisplayColumns
+ * [역할] 현재 카드 본문에 표시할 열 목록을 반환한다.
+ * [원리] controlsRenderer의 표시열 계산 함수에 제목열 계산 함수를 함께 넘긴다.
+ */
 export function getSelectedDisplayColumns(state) {
-  const selectableColumns = getSelectableDisplayColumns(state);
-  return state.displayColumns.filter((column) => selectableColumns.includes(column));
+  return getSelectedDisplayColumnsFromState(state, getTitleColumns);
 }
 
+/**
+ * [함수] getAllSelectableDisplayColumns
+ * [역할] 표시할 열로 선택 가능한 전체 열 목록을 반환한다.
+ * [원리] controlsRenderer의 후보 계산 함수에 제목열 계산 함수를 함께 넘긴다.
+ */
 export function getAllSelectableDisplayColumns(state) {
-  return getSelectableDisplayColumns(state);
+  return getAllSelectableDisplayColumnsFromState(state, getTitleColumns);
 }
 
-function renderDisplayColumnOptions(state) {
-  const selectableColumns = getSelectableDisplayColumns(state);
-  const selectedColumns = new Set(getSelectedDisplayColumns(state));
-  const hasColumns = selectableColumns.length > 0;
-
-  elements.displayColumnsList.innerHTML = hasColumns
-    ? selectableColumns
-        .map((column) => {
-          const checked = selectedColumns.has(column) ? "checked" : "";
-          const preview = getColumnPreview(state.rows, column);
-          return `
-            <label class="checkbox-option">
-              <input type="checkbox" value="${escapeHTML(column)}" ${checked} />
-              <span class="checkbox-option-text">
-                <span class="checkbox-option-title">${escapeHTML(column)}</span>
-                ${preview ? `<span class="checkbox-option-preview">${escapeHTML(preview)}</span>` : ""}
-              </span>
-            </label>
-          `;
-        })
-        .join("")
-    : '<span class="checkbox-empty">선택 가능한 열이 없습니다.</span>';
-
-  syncDisplayColumnsModalSummary();
-  elements.displayColumnsOpen.disabled = !hasColumns;
-  elements.displayColumnsOpen.textContent = selectedColumns.size
-    ? getSelectedDisplayColumns(state).join(", ")
-    : "선택된 열 없음";
-  elements.displayColumnsSummary.textContent = `${selectedColumns.size} / ${selectableColumns.length}개 선택`;
-}
-
+/**
+ * [함수] openDisplayColumnsModal
+ * [역할] 표시할 열 선택 모달을 연다.
+ * [원리] 모달을 열면서 선택 개수 요약을 동기화할 콜백을 전달한다.
+ */
 export function openDisplayColumnsModal() {
-  syncDisplayColumnsModalSummary();
-  elements.displayColumnsModal.hidden = false;
-  elements.displayColumnsClose.focus();
+  openDisplayColumnsModalPanel(elements, syncDisplayColumnsModalSummary);
 }
 
+/**
+ * [함수] closeDisplayColumnsModal
+ * [역할] 표시할 열 선택 모달을 닫는다.
+ * [원리] modalUi의 닫기 함수를 호출한다.
+ */
 export function closeDisplayColumnsModal() {
-  elements.displayColumnsModal.hidden = true;
+  closeDisplayColumnsModalPanel(elements);
 }
 
+/**
+ * [함수] getDisplayColumnCheckboxValues
+ * [역할] 표시할 열 모달에서 선택된 열 목록을 읽는다.
+ * [원리] controlsRenderer의 checkbox 값 수집 함수를 호출한다.
+ */
 export function getDisplayColumnCheckboxValues() {
-  return [...elements.displayColumnsList.querySelectorAll("input:checked")].map((input) => input.value);
+  return getDisplayColumnValues(elements);
 }
 
+/**
+ * [함수] setDisplayColumnCheckboxValues
+ * [역할] 표시할 열 모달의 선택 상태를 지정한 열 목록으로 설정한다.
+ * [원리] controlsRenderer에 elements와 요약 동기화 콜백을 전달한다.
+ */
 export function setDisplayColumnCheckboxValues(columns) {
-  const selectedColumns = new Set(columns);
-  elements.displayColumnsList.querySelectorAll("input[type='checkbox']").forEach((input) => {
-    input.checked = selectedColumns.has(input.value);
-  });
-  syncDisplayColumnsModalSummary();
+  setDisplayColumnValues(elements, columns, syncDisplayColumnsModalSummary);
 }
 
+/**
+ * [함수] syncDisplayColumnsModalSummary
+ * [역할] 표시할 열 모달의 전체 선택 체크박스와 선택 개수 표시를 갱신한다.
+ * [원리] controlsRenderer의 요약 계산 함수를 호출한다.
+ */
 export function syncDisplayColumnsModalSummary() {
-  const checkboxes = [...elements.displayColumnsList.querySelectorAll("input[type='checkbox']")];
-  const selectedCount = checkboxes.filter((input) => input.checked).length;
-  const totalCount = checkboxes.length;
-
-  elements.displayColumnsAll.disabled = totalCount === 0;
-  elements.displayColumnsAll.checked = totalCount > 0 && selectedCount === totalCount;
-  elements.displayColumnsAll.indeterminate = selectedCount > 0 && selectedCount < totalCount;
-  elements.displayColumnsCount.textContent = `${selectedCount} / ${totalCount}개 선택`;
+  syncDisplayColumnSummary(elements);
 }
 
+/**
+ * [함수] openImportModal
+ * [역할] 가져오기 설정 전체 창을 연다.
+ * [원리] modalUi의 가져오기 모달 열기 함수를 호출한다.
+ */
 export function openImportModal() {
-  elements.importModal.hidden = false;
-  elements.importClose.focus();
+  openImportModalPanel(elements);
 }
 
+/**
+ * [함수] closeImportModal
+ * [역할] 가져오기 설정 전체 창을 닫는다.
+ * [원리] modalUi의 가져오기 모달 닫기 함수를 호출한다.
+ */
 export function closeImportModal() {
-  elements.importModal.hidden = true;
-}
-
-function renderCard(
-  row,
-  index,
-  rowKey,
-  titleColumns,
-  displayColumns,
-  columns,
-  labelValue,
-) {
-  const title = getDisplayTitle(row, titleColumns, index);
-  const labelOption = LABEL_OPTIONS.find((option) => option.value === labelValue);
-  const labelStyle = labelOption ? `style="--label-color: ${labelOption.color}"` : "";
-  const labelClass = labelOption ? " selected" : "";
-  const labelText = labelOption ? `${labelOption.label} 라벨` : "라벨 선택";
-  const fields = displayColumns
-    .filter((column) => row[column])
-    .map((column) => {
-      return `
-        <div class="card-field">
-          <span class="field-name">${escapeHTML(column)}</span>
-          <span class="field-value">${escapeHTML(row[column])}</span>
-        </div>
-      `;
-    })
-    .join("");
-
-  return `
-    <article class="data-card" role="button" tabindex="0" data-row-index="${index}">
-      <button class="card-label-button${labelClass}" type="button" data-label-button data-row-key="${rowKey}" aria-label="${escapeHTML(labelText)}" ${labelStyle}></button>
-      <div class="card-title-row">
-        <h2 class="card-title">${escapeHTML(title)}</h2>
-      </div>
-      <div class="field-list">${fields || '<span class="field-value">표시할 열을 선택하세요.</span>'}</div>
-    </article>
-  `;
+  closeImportModalPanel(elements);
 }

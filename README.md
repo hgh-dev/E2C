@@ -14,10 +14,27 @@ python3 -m http.server 8000
 
 그리고 `http://localhost:8000`으로 접속합니다.
 
+## PWA 아이콘
+
+앱 설치용 아이콘은 아래 경로에 PNG 파일로 넣으면 됩니다.
+
+```text
+assets/icons/favicon.ico
+assets/icons/icon-192.png
+assets/icons/icon-512.png
+assets/icons/apple-touch-icon.png
+```
+
+`favicon.ico`는 브라우저 탭 아이콘용입니다. `icon-512.png`는 512x512, `icon-192.png`는 192x192, `apple-touch-icon.png`는 180x180 크기를 권장합니다. 하나의 원본 이미지만 있다면 512x512 PNG를 먼저 만들고, 같은 이미지에서 favicon, 192x192, 180x180 버전을 리사이즈하면 됩니다.
+
 ## 구조
 
 ```text
 index.html
+manifest.webmanifest
+sw.js
+assets/
+  icons/
 src/
   styles.css
   js/

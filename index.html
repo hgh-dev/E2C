@@ -4,10 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111111" />
+    <meta name="description" content="Excel 파일을 모바일 친화적인 카드로 변환하는 E2C 앱" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="E2C" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>E2C - Excel to Card</title>
+    <link rel="icon" href="./assets/icons/favicon.ico" sizes="any" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Loop&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script type="module" src="./src/js/app.js"></script>
+    <script type="module" src="./src/js/pwa.js"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -20,9 +33,12 @@
               <path d="M5 23h22"></path>
             </svg>
           </button>
-          <div>
+          <div class="brand-copy">
             <h1>E2C</h1>
-            <p>Excel to Card</p>
+            <p>
+              <span>Excel to</span>
+              <span>Card</span>
+            </p>
           </div>
         </div>
         <div class="header-actions">
@@ -162,15 +178,11 @@
             </svg>
           </button>
         </header>
-        <div class="modal-content filter-sort-grid">
-          <label class="field">
-            <span>정렬 열</span>
-            <button id="sortColumnSelect" class="select-button" type="button" disabled></button>
-          </label>
-          <label class="field">
-            <span>정렬 방향</span>
-            <button id="sortDirectionSelect" class="select-button" type="button" disabled></button>
-          </label>
+        <div class="modal-content filter-modal-content">
+          <div id="sortList" class="filter-list"></div>
+          <button id="addSort" class="secondary-action filter-add-button" type="button">
+            정렬 추가
+          </button>
         </div>
         <footer class="modal-footer-actions">
           <button id="sortCancel" class="secondary-action" type="button">취소</button>
@@ -249,18 +261,34 @@
         </header>
         <div class="settings-body">
           <div class="settings-group">
-            <button id="displayModeOpen" class="settings-row" type="button">
+            <div class="settings-row google-drive-row">
               <span>
-                <strong>표시 방식</strong>
-                <small>카드를 스크롤로 볼지 페이지로 나눠 볼지 선택합니다.</small>
+                <strong>Google Drive</strong>
+                <small id="googleDriveDetail">연결되지 않았습니다.</small>
               </span>
-              <span class="settings-trailing">
-                <strong id="displayModeValue" class="settings-value">스크롤</strong>
-                <svg class="settings-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m9 6 6 6-6 6"></path>
-                </svg>
+              <button id="googleDriveConnect" class="settings-inline-action" type="button">연결하기</button>
+            </div>
+            <button id="googleDriveBackup" class="settings-row google-drive-action-row" type="button" disabled>
+              <span>
+                <strong>백업하기</strong>
+                <small>클라우드 데이터를 현재 기기의 데이터로 교체합니다.</small>
               </span>
             </button>
+            <button id="googleDriveRestore" class="settings-row google-drive-action-row" type="button" disabled>
+              <span>
+                <strong>복원하기</strong>
+                <small>현재 기기의 데이터를 클라우드 데이터로 교체합니다.</small>
+              </span>
+            </button>
+            <button id="googleDriveSync" class="settings-row google-drive-action-row" type="button" disabled>
+              <span>
+                <strong>동기화</strong>
+                <small>기기와 클라우드 데이터를 합치고 최신 데이터로 맞춥니다.</small>
+              </span>
+            </button>
+            <div id="googleDriveOperationStatus" class="google-drive-status" role="status" aria-live="polite">
+              작업 내역이 없습니다.
+            </div>
           </div>
 
           <div class="settings-group">
@@ -273,7 +301,7 @@
             <div class="settings-row">
               <span>
                 <strong>버전</strong>
-                <small>현재 <span id="appVersionDisplay">1.0.0</span> / 최신 <span id="latestVersionDisplay">1.0.0</span></small>
+                <small>현재 <span id="appVersionDisplay">v1.0.1</span> / 최신 <span id="latestVersionDisplay">v1.0.1</span></small>
               </span>
               <button id="appUpdateButton" class="settings-update" type="button" disabled>업데이트</button>
             </div>
@@ -348,6 +376,12 @@
               </button>
               <span id="displayColumnsSummary" class="field-hint">0개 선택</span>
             </div>
+            <label class="field">
+              <span>표시 방식</span>
+              <button id="displayModeOpen" class="select-button" type="button">
+                <span id="displayModeValue">스크롤</span>
+              </button>
+            </label>
           </div>
         </section>
         <footer class="import-screen-actions">
