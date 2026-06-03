@@ -90,17 +90,17 @@ function bindEvents() {
   elements.displayModeClose.addEventListener("click", closeDisplayModeModal);
   document.querySelector("[data-close-display-mode]").addEventListener("click", closeDisplayModeModal);
   elements.displayModeInputs.forEach((input) => {
-    input.addEventListener("change", (event) => {
+    input.addEventListener("change", async (event) => {
       state.displayMode = event.target.value;
       currentPage = 1;
       closeDisplayModeModal();
+      await autoSaveActiveDeck();
       render();
     });
   });
   elements.savedList.addEventListener("click", handleDeckClick);
   elements.newDeck.addEventListener("click", createDeck);
   elements.importSavedInput.addEventListener("change", importDecks);
-  elements.saveCurrent.addEventListener("click", saveCurrentDeck);
   elements.importOpen.addEventListener("click", openImportSettings);
   elements.importClose.addEventListener("click", cancelImportSettings);
   elements.importCancel.addEventListener("click", cancelImportSettings);
@@ -252,8 +252,9 @@ function toggleFilterSettings() {
   toggleFilterPanel();
 }
 
-function applyFilterSettings() {
+async function applyFilterSettings() {
   filterSnapshot = null;
+  await autoSaveActiveDeck();
   closeFilterPanel();
 }
 
@@ -285,8 +286,9 @@ function toggleSortSettings() {
   toggleSortPanel();
 }
 
-function applySortSettings() {
+async function applySortSettings() {
   sortSnapshot = null;
+  await autoSaveActiveDeck();
   closeSortPanel();
 }
 
@@ -372,29 +374,6 @@ async function createDeck() {
   render();
 }
 
-async function saveCurrentDeck() {
-  if (!activeDeckId || state.columns.length === 0) return;
-
-  const decks = await getDecks();
-  const deckIndex = decks.findIndex((deck) => deck.id === activeDeckId);
-  if (deckIndex < 0) return;
-
-  decks[deckIndex] = {
-    ...decks[deckIndex],
-    name: decks[deckIndex].name || state.fileName || "이름 없는 덱",
-    updatedAt: new Date().toISOString(),
-    data: serializeState(state),
-  };
-
-  try {
-    await saveDecks(decks);
-    renderDeckList(await getDecks(), activeDeckId);
-    openSidebar();
-  } catch {
-    showMessage("브라우저 저장소에 저장하지 못했습니다.");
-  }
-}
-
 async function persistActiveDeckData() {
   if (!activeDeckId || state.columns.length === 0) return;
 
@@ -408,6 +387,15 @@ async function persistActiveDeckData() {
     data: serializeState(state),
   };
   await saveDecks(decks);
+  renderDeckList(decks, activeDeckId);
+}
+
+async function autoSaveActiveDeck() {
+  try {
+    await persistActiveDeckData();
+  } catch {
+    showMessage("브라우저 저장소에 저장하지 못했습니다.");
+  }
 }
 
 async function handleDeckClick(event) {
@@ -587,10 +575,11 @@ function cancelImportSettings() {
   closeImportModal();
 }
 
-function applyImportSettings() {
+async function applyImportSettings() {
   copyState(draftState, state);
   closeDisplayColumnsModal();
   closeImportModal();
+  await autoSaveActiveDeck();
   render();
 }
 
@@ -699,7 +688,7 @@ function render() {
     visibleRows = [];
     renderedRowCount = 0;
     renderPageControls(state, 0, 1, PAGE_SIZE);
-    showMessage("파일을 가져와 덱에 저장하세요.");
+    showMessage("파일을 가져오세요.");
     return;
   }
 
@@ -783,7 +772,7 @@ async function handleLabelPaletteClick(event) {
   }
   state.labelMap = nextLabelMap;
   closeLabelPalette();
-  await persistActiveDeckData();
+  await autoSaveActiveDeck();
   render();
 }
 
@@ -863,8 +852,8 @@ function cloneState(source) {
     sortColumn: source.sortColumn,
     sortDirection: source.sortDirection,
     randomSortSeed: source.randomSortSeed || "",
-    searchColumn: source.searchColumn || "",
-    searchTerm: source.searchTerm,
+    searchColumn: "",
+    searchTerm: "",
     displayMode: source.displayMode || "scroll",
     labelMap: { ...(source.labelMap || {}) },
     labelFilter: source.labelFilter || "",
@@ -985,6 +974,8 @@ function deserializeState(data) {
     rows: data.rows || [],
     displayColumns: data.displayColumns || [],
     filters: normalizeSerializedFilters(data),
+    searchColumn: "",
+    searchTerm: "",
     labelMap: data.labelMap || {},
     labelFilter: data.labelFilter || "",
   };

@@ -32,7 +32,6 @@ const elements = {
   savedList: document.querySelector("#savedList"),
   newDeck: document.querySelector("#newDeck"),
   importSavedInput: document.querySelector("#importSavedInput"),
-  saveCurrent: document.querySelector("#saveCurrent"),
   importOpen: document.querySelector("#importOpen"),
   importOpenIcon: document.querySelector("#importOpenIcon"),
   importOpenLabel: document.querySelector("#importOpenLabel"),
@@ -641,7 +640,6 @@ export function renderImportButton(state, hasActiveDeck = false) {
     hasActiveDeck ? "가져오기 설정 수정" : "덱을 먼저 선택하세요",
   );
   elements.importOpen.disabled = !hasActiveDeck;
-  elements.saveCurrent.disabled = !hasActiveDeck || state.columns.length === 0;
 }
 
 export function renderDeckList(decks, activeDeckId) {
