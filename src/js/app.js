@@ -2,6 +2,7 @@ import { getVisibleRows } from "./dataProcessor.js";
 import { getStoredDecks, setStoredDecks } from "./deckStorage.js";
 import { matrixToTable, readFileAsWorkbook, sheetToMatrix } from "./excelReader.js";
 import { state } from "./state.js";
+import { bindVersionUpdate, checkAppVersion } from "./versionUpdate.js";
 import {
   applyDefaultColumns,
   closeDetailModal,
@@ -62,6 +63,7 @@ let sortSnapshot = null;
 
 async function init() {
   bindEvents();
+  bindVersionUpdate(elements);
   setupLoadMoreObserver();
   renderControls(state);
   renderImportButton(state, Boolean(activeDeckId));
@@ -70,6 +72,7 @@ async function init() {
   renderFilterSortControls(state);
   renderSearchControl(state);
   renderLabelFilters(state);
+  checkAppVersion(elements);
   showMessage("사이드바에서 덱을 만들거나 선택하세요.");
 }
 
