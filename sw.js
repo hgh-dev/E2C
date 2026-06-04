@@ -1,9 +1,10 @@
-const CACHE_NAME = "e2c-pwa-v11";
+const CACHE_NAME = "e2c-pwa-v13";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./version.json",
+  "./assets/icons/google-drive.png",
   "./src/styles.css",
   "./src/js/app.js",
   "./src/js/cardListController.js",
@@ -52,6 +53,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

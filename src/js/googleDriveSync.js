@@ -484,10 +484,14 @@ async function driveFetchJson(url, options = {}) {
  * [원리] Authorization 헤더를 붙이고 401이면 token을 버려 다음 요청에서 재발급되도록 한다.
  */
 async function driveFetch(url, options = {}) {
-  const response = await fetch(url, {
+  const method = (options.method || "GET").toUpperCase();
+  const requestUrl = method === "GET" ? addNoCacheParam(url) : url;
+  const response = await fetch(requestUrl, {
     ...options,
+    cache: "no-store",
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      "Cache-Control": "no-cache",
       ...(options.headers || {}),
     },
   });
@@ -501,6 +505,17 @@ async function driveFetch(url, options = {}) {
   }
 
   return response;
+}
+
+/**
+ * [함수] addNoCacheParam
+ * [역할] Drive 조회 요청이 브라우저/서비스워커 캐시를 재사용하지 않도록 URL을 만든다.
+ * [원리] GET URL에 매번 다른 t 값을 붙여 최신 응답을 강제한다.
+ */
+function addNoCacheParam(url) {
+  const requestUrl = new URL(url, window.location.href);
+  requestUrl.searchParams.set("t", String(Date.now()));
+  return requestUrl.toString();
 }
 
 /**

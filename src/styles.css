@@ -109,7 +109,7 @@ select {
   margin: 0;
   font-family: "Zen Loop", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 38px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 0.84;
   letter-spacing: 0;
   text-shadow:
@@ -125,7 +125,7 @@ select {
   margin: 0;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 1.05;
 }
 
@@ -507,7 +507,22 @@ select {
   outline-offset: -2px;
 }
 
+.google-drive-row-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.google-drive-logo {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .google-drive-row-copy {
+  display: block;
   min-width: 0;
 }
 
