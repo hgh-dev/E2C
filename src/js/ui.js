@@ -89,11 +89,16 @@ const elements = {
   displayModeClose: document.querySelector("#displayModeClose"),
   displayModeInputs: document.querySelectorAll("input[name='displayMode']"),
   googleDriveDetail: document.querySelector("#googleDriveDetail"),
+  googleDriveBrowse: document.querySelector("#googleDriveBrowse"),
   googleDriveConnect: document.querySelector("#googleDriveConnect"),
   googleDriveBackup: document.querySelector("#googleDriveBackup"),
   googleDriveRestore: document.querySelector("#googleDriveRestore"),
   googleDriveSync: document.querySelector("#googleDriveSync"),
   googleDriveOperationStatus: document.querySelector("#googleDriveOperationStatus"),
+  googleDriveFileModal: document.querySelector("#googleDriveFileModal"),
+  googleDriveFileClose: document.querySelector("#googleDriveFileClose"),
+  googleDriveFileConfirm: document.querySelector("#googleDriveFileConfirm"),
+  googleDriveFileContent: document.querySelector("#googleDriveFileContent"),
   savedList: document.querySelector("#savedList"),
   newDeck: document.querySelector("#newDeck"),
   importSavedInput: document.querySelector("#importSavedInput"),
@@ -159,6 +164,8 @@ const elements = {
   selectModalApply: document.querySelector("#selectModalApply"),
   selectModalClose: document.querySelector("#selectModalClose"),
   detailModal: document.querySelector("#detailModal"),
+  detailCurrentCard: document.querySelector("#detailCurrentCard"),
+  detailPreviewCard: document.querySelector("#detailPreviewCard"),
   modalTitle: document.querySelector("#modalTitle"),
   modalContent: document.querySelector("#modalContent"),
   modalClose: document.querySelector("#modalClose"),
@@ -166,6 +173,15 @@ const elements = {
 };
 
 let copyToastTimer = null;
+let detailRows = [];
+let detailState = null;
+let detailIndex = -1;
+let detailTouchStartX = 0;
+let detailTouchStartY = 0;
+let detailTouchCurrentX = 0;
+let detailTouchCurrentY = 0;
+let detailIsDragging = false;
+let detailPreviewOffset = 0;
 
 export const LABEL_OPTIONS = [
   { value: "red", label: "빨간색", color: "#ef4444" },
@@ -542,23 +558,99 @@ export function showMessage(text) {
  * [역할] 카드 상세 정보를 중앙 모달로 연다.
  * [원리] 제목과 모든 열 값을 버튼 형태로 렌더링해 클릭 복사가 가능하게 한다.
  */
-export function openDetailModal(row, state, rowIndex) {
+export function openDetailModal(row, state, rowIndex, rows = [row]) {
+  detailRows = rows;
+  detailState = state;
+  detailIndex = rowIndex;
+  renderDetailModal(row, state, rowIndex);
+  elements.detailModal.hidden = false;
+  resetDetailSwipeTransform();
+  elements.modalClose.focus();
+}
+
+/**
+ * [함수] renderDetailModal
+ * [역할] 상세 모달의 제목과 필드 목록을 현재 행 기준으로 다시 그린다.
+ * [원리] 이전/다음 스와이프 때 모달은 유지하고 내부 내용만 교체한다.
+ */
+function renderDetailModal(row, state, rowIndex) {
   const title = getDisplayTitle(row, getTitleColumns(state), rowIndex);
   elements.modalTitle.textContent = title;
   elements.modalTitle.dataset.copyValue = title;
-  elements.modalContent.innerHTML = state.columns
+  elements.modalContent.innerHTML = getDetailFieldMarkup(row, state, true);
+}
+
+/**
+ * [함수] renderDetailPreviewCard
+ * [역할] 스와이프 방향의 다음/이전 상세 카드를 미리 렌더링한다.
+ * [원리] 실제 모달과 같은 제목/필드 구조를 복사 불가 상태로 만들어 옆 카드처럼 보여준다.
+ */
+function renderDetailPreviewCard(row, state, rowIndex) {
+  const title = getDisplayTitle(row, getTitleColumns(state), rowIndex);
+  elements.detailPreviewCard.innerHTML = `
+    <header class="modal-header">
+      <strong class="detail-preview-title">${escapeHTML(title)}</strong>
+      <span class="icon-button detail-preview-spacer" aria-hidden="true"></span>
+    </header>
+    <div class="modal-content">${getDetailFieldMarkup(row, state, false)}</div>
+  `;
+}
+
+/**
+ * [함수] getDetailFieldMarkup
+ * [역할] 상세 모달의 필드 목록 HTML을 만든다.
+ * [원리] 현재 카드는 복사 버튼으로, 미리보기 카드는 비활성 div로 같은 내용을 출력한다.
+ */
+function getDetailFieldMarkup(row, state, interactive) {
+  return state.columns
     .map((column) => {
       const value = normalizeValue(row[column]) || "-";
+      const tag = interactive ? "button" : "div";
+      const attributes = interactive
+        ? `type="button" data-copy-value="${escapeHTML(value)}"`
+        : `aria-hidden="true"`;
       return `
-        <button class="detail-field" type="button" data-copy-value="${escapeHTML(value)}">
+        <${tag} class="detail-field" ${attributes}>
           <span class="field-name">${escapeHTML(column)}</span>
           <span class="field-value">${escapeHTML(value)}</span>
-        </button>
+        </${tag}>
       `;
     })
     .join("");
-  elements.detailModal.hidden = false;
-  elements.modalClose.focus();
+}
+
+/**
+ * [함수] showPreviousDetailCard
+ * [역할] 상세 모달에서 이전 카드 내용을 표시한다.
+ * [원리] 현재 visibleRows 인덱스를 하나 줄이고 유효 범위 안이면 상세 내용을 다시 렌더링한다.
+ */
+export function showPreviousDetailCard() {
+  showDetailCardByOffset(-1);
+}
+
+/**
+ * [함수] showNextDetailCard
+ * [역할] 상세 모달에서 다음 카드 내용을 표시한다.
+ * [원리] 현재 visibleRows 인덱스를 하나 늘리고 유효 범위 안이면 상세 내용을 다시 렌더링한다.
+ */
+export function showNextDetailCard() {
+  showDetailCardByOffset(1);
+}
+
+/**
+ * [함수] showDetailCardByOffset
+ * [역할] 상세 모달의 현재 행을 offset만큼 이동한다.
+ * [원리] 필터/정렬이 반영된 detailRows 안에서만 이동하고 범위를 넘으면 아무 동작도 하지 않는다.
+ */
+function showDetailCardByOffset(offset) {
+  if (elements.detailModal.hidden || !detailState || detailRows.length === 0) return;
+
+  const nextIndex = detailIndex + offset;
+  if (nextIndex < 0 || nextIndex >= detailRows.length) return;
+
+  detailIndex = nextIndex;
+  renderDetailModal(detailRows[detailIndex], detailState, detailIndex);
+  animateDetailSwipeIn(offset);
 }
 
 /**
@@ -568,6 +660,234 @@ export function openDetailModal(row, state, rowIndex) {
  */
 export function closeDetailModal() {
   elements.detailModal.hidden = true;
+  detailRows = [];
+  detailState = null;
+  detailIndex = -1;
+  resetDetailSwipeTransform();
+}
+
+/**
+ * [함수] handleDetailTouchStart
+ * [역할] 상세 모달 스와이프 시작 좌표를 기록한다.
+ * [원리] 터치 시작점의 x/y를 저장해 종료 시 이동 거리와 방향을 판정한다.
+ */
+export function handleDetailTouchStart(event) {
+  const touch = event.touches?.[0];
+  if (!touch) return;
+
+  detailTouchStartX = touch.clientX;
+  detailTouchStartY = touch.clientY;
+  detailTouchCurrentX = touch.clientX;
+  detailTouchCurrentY = touch.clientY;
+  detailIsDragging = false;
+  detailPreviewOffset = 0;
+  elements.detailCurrentCard.classList.remove("is-swipe-animating");
+  elements.detailPreviewCard.classList.remove("is-swipe-animating");
+  elements.detailPreviewCard.hidden = true;
+}
+
+/**
+ * [함수] handleDetailTouchMove
+ * [역할] 상세 모달이 손가락을 따라 좌우로 움직이게 한다.
+ * [원리] 가로 이동이 세로 이동보다 충분히 클 때 카드에 translateX와 약한 회전을 적용한다.
+ */
+export function handleDetailTouchMove(event) {
+  const touch = event.touches?.[0];
+  if (!touch) return;
+
+  detailTouchCurrentX = touch.clientX;
+  detailTouchCurrentY = touch.clientY;
+
+  const deltaX = detailTouchCurrentX - detailTouchStartX;
+  const deltaY = detailTouchCurrentY - detailTouchStartY;
+  if (!detailIsDragging && (Math.abs(deltaX) < 10 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2)) {
+    return;
+  }
+
+  detailIsDragging = true;
+  if (event.cancelable) {
+    event.preventDefault();
+  }
+
+  const maxDrag = getDetailSwipeDistance() * 0.7;
+  const clampedX = Math.max(-maxDrag, Math.min(maxDrag, deltaX));
+  const rotate = clampedX * 0.015;
+  const offset = clampedX < 0 ? 1 : -1;
+
+  setDetailSwipeTransform(elements.detailCurrentCard, clampedX, rotate);
+  if (canMoveDetailCard(offset)) {
+    showDetailSwipePreview(offset, clampedX);
+  } else {
+    hideDetailSwipePreview();
+  }
+}
+
+/**
+ * [함수] handleDetailTouchEnd
+ * [역할] 상세 모달 좌우 스와이프를 이전/다음 카드 이동으로 변환한다.
+ * [원리] 가로 이동이 충분하고 세로 이동보다 클 때만 카드 전환으로 처리한다.
+ */
+export function handleDetailTouchEnd(event) {
+  const touch = event.changedTouches?.[0];
+  if (!touch) return;
+
+  const deltaX = touch.clientX - detailTouchStartX;
+  const deltaY = touch.clientY - detailTouchStartY;
+  if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.3) {
+    animateDetailSwipeBack();
+    return;
+  }
+
+  if (event.cancelable) {
+    event.preventDefault();
+  }
+
+  if (deltaX < 0) {
+    navigateDetailCardWithSwipe(1, -1);
+    return;
+  }
+
+  navigateDetailCardWithSwipe(-1, 1);
+}
+
+/**
+ * [함수] navigateDetailCardWithSwipe
+ * [역할] 스와이프 애니메이션과 상세 카드 이동을 순서대로 실행한다.
+ * [원리] 현재 카드를 먼저 밀어낸 뒤 짧은 지연 후 새 상세 내용을 렌더링해 원위치로 들어오게 한다.
+ */
+function navigateDetailCardWithSwipe(offset, outDirection) {
+  if (!canMoveDetailCard(offset)) {
+    animateDetailSwipeBack();
+    return;
+  }
+
+  animateDetailSwipeOut(offset, outDirection);
+  window.setTimeout(() => {
+    detailIndex += offset;
+    renderDetailModal(detailRows[detailIndex], detailState, detailIndex);
+    resetDetailSwipeTransform();
+  }, 190);
+}
+
+/**
+ * [함수] canMoveDetailCard
+ * [역할] 현재 상세 모달에서 offset 방향으로 이동 가능한지 확인한다.
+ * [원리] 다음 인덱스가 detailRows 범위 안에 있는지만 검사한다.
+ */
+function canMoveDetailCard(offset) {
+  const nextIndex = detailIndex + offset;
+  return nextIndex >= 0 && nextIndex < detailRows.length;
+}
+
+/**
+ * [함수] setDetailSwipeTransform
+ * [역할] 상세 모달 카드의 스와이프 이동 스타일을 적용한다.
+ * [원리] CSS 변수로 이동/회전 값을 넣어 transform 선언을 한 곳에서 유지한다.
+ */
+function setDetailSwipeTransform(card, x, rotate = 0) {
+  if (!card) return;
+
+  card.style.setProperty("--detail-swipe-x", `${x}px`);
+  card.style.setProperty("--detail-swipe-rotate", `${rotate}deg`);
+}
+
+/**
+ * [함수] resetDetailSwipeTransform
+ * [역할] 상세 모달 카드의 스와이프 이동 상태를 초기화한다.
+ * [원리] 애니메이션 class와 CSS 변수를 기본값으로 되돌린다.
+ */
+function resetDetailSwipeTransform() {
+  elements.detailCurrentCard.classList.remove("is-swipe-animating");
+  elements.detailPreviewCard.classList.remove("is-swipe-animating");
+  setDetailSwipeTransform(elements.detailCurrentCard, 0, 0);
+  setDetailSwipeTransform(elements.detailPreviewCard, 0, 0);
+  hideDetailSwipePreview();
+}
+
+/**
+ * [함수] animateDetailSwipeBack
+ * [역할] 스와이프 거리가 부족할 때 카드를 원위치로 되돌린다.
+ * [원리] transition class를 잠깐 붙이고 transform 값을 0으로 돌린다.
+ */
+function animateDetailSwipeBack() {
+  elements.detailCurrentCard.classList.add("is-swipe-animating");
+  elements.detailPreviewCard.classList.add("is-swipe-animating");
+  setDetailSwipeTransform(elements.detailCurrentCard, 0, 0);
+  if (!elements.detailPreviewCard.hidden && detailPreviewOffset) {
+    const direction = detailPreviewOffset > 0 ? 1 : -1;
+    setDetailSwipeTransform(elements.detailPreviewCard, direction * getDetailSwipeDistance(), 0);
+  }
+  window.setTimeout(hideDetailSwipePreview, 180);
+}
+
+/**
+ * [함수] animateDetailSwipeOut
+ * [역할] 카드 전환이 확정됐을 때 현재 카드를 살짝 밀어낸다.
+ * [원리] 방향에 따라 화면 바깥쪽으로 짧은 transition을 준다.
+ */
+function animateDetailSwipeOut(offset, direction) {
+  elements.detailCurrentCard.classList.add("is-swipe-animating");
+  elements.detailPreviewCard.classList.add("is-swipe-animating");
+  setDetailSwipeTransform(elements.detailCurrentCard, direction * getDetailSwipeDistance(), direction * 1.8);
+  if (elements.detailPreviewCard.hidden || detailPreviewOffset !== offset) {
+    showDetailSwipePreview(offset, 0);
+  }
+  setDetailSwipeTransform(elements.detailPreviewCard, 0, 0);
+}
+
+/**
+ * [함수] showDetailSwipePreview
+ * [역할] 스와이프 방향의 다음/이전 카드를 옆에 미리 표시한다.
+ * [원리] 현재 카드 이동량에 카드 폭을 더해 미리보기 카드가 손가락을 따라 들어오게 한다.
+ */
+function showDetailSwipePreview(offset, currentX) {
+  const previewIndex = detailIndex + offset;
+  if (previewIndex < 0 || previewIndex >= detailRows.length) return;
+
+  if (elements.detailPreviewCard.hidden || detailPreviewOffset !== offset) {
+    detailPreviewOffset = offset;
+    renderDetailPreviewCard(detailRows[previewIndex], detailState, previewIndex);
+    elements.detailPreviewCard.hidden = false;
+    elements.detailPreviewCard.classList.remove("is-swipe-animating");
+  }
+
+  const direction = offset > 0 ? 1 : -1;
+  const previewX = currentX + direction * getDetailSwipeDistance();
+  setDetailSwipeTransform(elements.detailPreviewCard, previewX, previewX * 0.006);
+}
+
+/**
+ * [함수] hideDetailSwipePreview
+ * [역할] 상세 스와이프 미리보기 카드를 숨긴다.
+ * [원리] hidden 상태로 되돌리고 현재 미리보기 방향을 초기화한다.
+ */
+function hideDetailSwipePreview() {
+  elements.detailPreviewCard.hidden = true;
+  detailPreviewOffset = 0;
+}
+
+/**
+ * [함수] getDetailSwipeDistance
+ * [역할] 상세 카드가 완전히 옆으로 이동할 거리를 계산한다.
+ * [원리] 현재 카드 폭에 간격을 더해 다음 카드가 자연스럽게 중앙으로 들어오도록 한다.
+ */
+function getDetailSwipeDistance() {
+  return elements.detailCurrentCard.getBoundingClientRect().width + 18;
+}
+
+/**
+ * [함수] animateDetailSwipeIn
+ * [역할] 다음/이전 상세 내용이 원위치로 들어오는 느낌을 만든다.
+ * [원리] 새 내용을 반대편에 잠깐 배치한 뒤 다음 frame에서 원위치로 전환한다.
+ */
+function animateDetailSwipeIn(offset) {
+  const direction = offset > 0 ? 1 : -1;
+  elements.detailCurrentCard.classList.remove("is-swipe-animating");
+  setDetailSwipeTransform(elements.detailCurrentCard, direction * -56, direction * -0.8);
+  window.requestAnimationFrame(() => {
+    elements.detailCurrentCard.classList.add("is-swipe-animating");
+    setDetailSwipeTransform(elements.detailCurrentCard, 0, 0);
+  });
 }
 
 /**

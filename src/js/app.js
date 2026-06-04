@@ -32,6 +32,9 @@ import {
   getDisplayColumnCheckboxValues,
   getSelectedDisplayColumns,
   getElements,
+  handleDetailTouchEnd,
+  handleDetailTouchMove,
+  handleDetailTouchStart,
   openDisplayColumnsModal,
   openDisplayModeModal,
   openImportModal,
@@ -51,6 +54,8 @@ import {
   setDisplayColumnCheckboxValues,
   setSidebarTab,
   setupSelectModalTriggers,
+  showNextDetailCard,
+  showPreviousDetailCard,
   showMessage,
   syncDisplayColumnsModalSummary,
   toggleFilterPanel,
@@ -223,6 +228,9 @@ function bindEvents() {
   elements.cardList.addEventListener("keydown", cardListController.handleCardKeydown);
   elements.labelPaletteList.addEventListener("click", viewInteractionController.handleLabelPaletteClick);
   elements.detailModal.addEventListener("click", viewInteractionController.handleDetailCopyClick);
+  elements.detailModal.addEventListener("touchstart", handleDetailTouchStart, { passive: true });
+  elements.detailModal.addEventListener("touchmove", handleDetailTouchMove);
+  elements.detailModal.addEventListener("touchend", handleDetailTouchEnd);
   elements.modalClose.addEventListener("click", closeDetailModal);
   document.querySelector("[data-close-modal]").addEventListener("click", closeDetailModal);
   elements.displayColumnsClose.addEventListener("click", closeDisplayColumnsModal);
@@ -232,6 +240,16 @@ function bindEvents() {
   document.addEventListener("click", deckController.closeDeckMenuOnOutsideClick);
   document.addEventListener("click", viewInteractionController.closeLabelPaletteOnOutsideClick);
   document.addEventListener("keydown", (event) => {
+    if (!elements.detailModal.hidden && event.key === "ArrowLeft") {
+      showPreviousDetailCard();
+      return;
+    }
+
+    if (!elements.detailModal.hidden && event.key === "ArrowRight") {
+      showNextDetailCard();
+      return;
+    }
+
     if (event.key === "Escape") {
       // Escape는 현재 열릴 수 있는 모든 임시 UI를 닫는 공통 취소 동작입니다.
       closeDetailModal();

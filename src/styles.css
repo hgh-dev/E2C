@@ -499,6 +499,16 @@ select {
 
 .google-drive-row {
   min-height: 58px;
+  cursor: pointer;
+}
+
+.google-drive-row:focus-visible {
+  outline: 2px solid #111111;
+  outline-offset: -2px;
+}
+
+.google-drive-row-copy {
+  min-width: 0;
 }
 
 .settings-inline-action {
@@ -527,7 +537,15 @@ select {
 }
 
 .google-drive-action-row {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 52px;
+  padding-left: 36px;
+  background: #fcfcfd;
   cursor: pointer;
+}
+
+.google-drive-action-row span {
+  min-width: 0;
 }
 
 .google-drive-action-row:disabled {
@@ -545,12 +563,102 @@ select {
   line-height: 1.35;
 }
 
+.google-drive-file-modal-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(420px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.google-drive-file-content {
+  align-content: start;
+}
+
+.google-drive-file-state {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--muted);
+  padding: 18px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.google-drive-file-list li {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 9px 10px;
+}
+
+.google-drive-file-list small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.google-drive-file-list strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.google-drive-file-list-section {
+  display: grid;
+  gap: 8px;
+}
+
+.google-drive-file-list-section h3 {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.google-drive-file-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.google-drive-file-list .empty-drive-file-item {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.google-drive-file-modified {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .display-mode-card {
   width: min(420px, calc(100vw - 28px));
 }
 
 #displayModeModal {
   z-index: 55;
+}
+
+#googleDriveFileModal {
+  z-index: 56;
 }
 
 .radio-option-list {
@@ -1311,7 +1419,11 @@ main {
   margin: 11px 2px 8px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
+}
+
+#cardCount {
+  font-weight: 500;
 }
 
 .summary-actions {
@@ -1360,7 +1472,7 @@ main {
   background: rgba(255, 255, 255, 0.65);
   color: var(--muted);
   text-align: center;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .empty-state[hidden],
@@ -1673,9 +1785,45 @@ main {
 }
 
 .detail-modal-card {
+  --detail-swipe-x: 0px;
+  --detail-swipe-rotate: 0deg;
+  z-index: 2;
   width: min(520px, calc(100vw - 28px));
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  transform: translate3d(var(--detail-swipe-x), 0, 0) rotate(var(--detail-swipe-rotate));
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.detail-modal-card.is-swipe-animating {
+  transition: transform 180ms ease;
+}
+
+.detail-preview-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  pointer-events: none;
+  transform: translate3d(calc(-50% + var(--detail-swipe-x)), -50%, 0) rotate(var(--detail-swipe-rotate));
+}
+
+.detail-preview-card[hidden] {
+  display: none;
+}
+
+.detail-preview-title {
+  min-width: 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.detail-preview-spacer {
+  visibility: hidden;
 }
 
 .filter-sort-modal-card {

@@ -13,12 +13,14 @@ import {
   GOOGLE_DRIVE_SCOPE,
 } from "./config.js";
 import { getDecks, normalizeImportedDecks } from "./deckRepository.js";
+import { escapeHTML } from "./utils.js";
 
 const GOOGLE_IDENTITY_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 const DRIVE_CONNECTION_KEY = "e2c.googleDriveConnection";
+const DRIVE_LAST_OPERATION_KEY = "e2c.googleDriveLastOperation";
 
 let tokenClient = null;
 let accessToken = "";
@@ -32,10 +34,15 @@ let connectedEmail = "";
  */
 export function bindGoogleDriveSync({ elements, deckController, render }) {
   const rememberedEmail = getRememberedEmail();
+  const rememberedOperation = getRememberedLastOperation();
   renderDriveConnection(elements, rememberedEmail || "연결되지 않았습니다.");
   renderDriveOperationResult(
     elements,
-    rememberedEmail ? "Google Drive 작업을 실행하려면 다시 연결이 필요합니다." : "작업 내역이 없습니다.",
+    rememberedOperation
+      ? formatLastOperation(rememberedOperation.name, rememberedOperation.createdAt)
+      : rememberedEmail
+        ? "Google Drive 작업을 실행하려면 다시 연결이 필요합니다."
+        : "작업 내역이 없습니다.",
   );
   setDriveButtonsEnabled(elements, false);
 
@@ -46,10 +53,22 @@ export function bindGoogleDriveSync({ elements, deckController, render }) {
     return;
   }
 
-  elements.googleDriveConnect.addEventListener("click", () => toggleDriveConnection(elements));
+  elements.googleDriveBrowse.addEventListener("click", () => openDriveFileModal(elements));
+  elements.googleDriveBrowse.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openDriveFileModal(elements);
+  });
+  elements.googleDriveConnect.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleDriveConnection(elements);
+  });
   elements.googleDriveBackup.addEventListener("click", () => backupDecks(elements, deckController));
   elements.googleDriveRestore.addEventListener("click", () => restoreDecks(elements, deckController, render));
   elements.googleDriveSync.addEventListener("click", () => syncDecks(elements, deckController, render));
+  elements.googleDriveFileClose.addEventListener("click", () => closeDriveFileModal(elements));
+  elements.googleDriveFileConfirm.addEventListener("click", () => closeDriveFileModal(elements));
+  document.querySelector("[data-close-google-drive-files]").addEventListener("click", () => closeDriveFileModal(elements));
 }
 
 /**
@@ -79,7 +98,15 @@ async function connectDrive(elements) {
     const file = await retryWithFreshTokenOnForbidden(() => findBackupFile());
     backupFileMeta = file;
     renderDriveConnection(elements, connectedEmail || "연결된 Google 계정");
-    renderDriveOperationResult(elements, file ? formatLastOperation("백업", file.modifiedTime) : "작업 내역이 없습니다.");
+    const rememberedOperation = getRememberedLastOperation();
+    renderDriveOperationResult(
+      elements,
+      rememberedOperation
+        ? formatLastOperation(rememberedOperation.name, rememberedOperation.createdAt)
+        : file
+          ? formatLastOperation("백업", file.modifiedTime)
+          : "작업 내역이 없습니다.",
+    );
     setDriveButtonsEnabled(elements, true);
   } catch (error) {
     console.warn("Google Drive 연결 실패:", error);
@@ -133,7 +160,7 @@ async function backupDecks(elements, deckController) {
     const payload = createBackupPayload(await getDecks());
     const file = await retryWithFreshTokenOnForbidden(() => upsertBackupFile(payload));
     backupFileMeta = file;
-    renderDriveOperationResult(elements, formatLastOperation("백업", file.modifiedTime));
+    renderAndRememberLastOperation(elements, "백업");
   } catch (error) {
     console.warn("Google Drive 백업 실패:", error);
     renderDriveOperationResult(elements, "백업 실패 · 네트워크 또는 Google 권한을 확인하세요.");
@@ -161,7 +188,7 @@ async function restoreDecks(elements, deckController, render) {
 
     const importedDecks = normalizeImportedDecks(backup);
     await deckController.applyDeckBackup(importedDecks);
-    renderDriveOperationResult(elements, formatLastOperation("복원"));
+    renderAndRememberLastOperation(elements, "복원");
   } catch (error) {
     console.warn("Google Drive 복원 실패:", error);
     renderDriveOperationResult(elements, "복원 실패 · 백업 JSON을 읽지 못했습니다.");
@@ -196,11 +223,54 @@ async function syncDecks(elements, deckController, render) {
     const payload = createBackupPayload(mergedDecks);
     const file = await retryWithFreshTokenOnForbidden(() => upsertBackupFile(payload));
     backupFileMeta = file;
-    renderDriveOperationResult(elements, formatLastOperation("동기화", file.modifiedTime));
+    renderAndRememberLastOperation(elements, "동기화");
   } catch (error) {
     console.warn("Google Drive 동기화 실패:", error);
     renderDriveOperationResult(elements, "동기화 실패 · Drive 백업 상태를 확인하지 못했습니다.");
   }
+}
+
+/**
+ * [함수] openDriveFileModal
+ * [역할] Google Drive 앱 전용 저장공간의 백업 파일 정보를 팝업으로 표시한다.
+ * [원리] 연결된 access token으로 e2c-decks.json을 조회하고 파일 메타와 덱 목록을 렌더링한다.
+ */
+async function openDriveFileModal(elements) {
+  elements.googleDriveFileModal.hidden = false;
+  elements.googleDriveFileContent.innerHTML = `
+    <div class="google-drive-file-state">Google Drive 백업 파일을 확인하는 중입니다.</div>
+  `;
+  elements.googleDriveFileClose.focus();
+
+  if (!accessToken) {
+    renderDriveFileMessage(elements, "Google Drive에 먼저 연결하세요.");
+    return;
+  }
+
+  try {
+    const file = await retryWithFreshTokenOnForbidden(() => findBackupFile());
+    backupFileMeta = file;
+
+    if (!file) {
+      renderDriveFileMessage(elements, "Google Drive에 백업 파일이 없습니다.");
+      return;
+    }
+
+    const backup = await retryWithFreshTokenOnForbidden(() => readBackupPayload());
+    renderDriveFileContent(elements, file, backup);
+  } catch (error) {
+    console.warn("Google Drive 파일 확인 실패:", error);
+    renderDriveFileMessage(elements, "파일을 확인하지 못했습니다. Google 권한이나 네트워크 상태를 확인하세요.");
+  }
+}
+
+/**
+ * [함수] closeDriveFileModal
+ * [역할] Google Drive 파일 확인 팝업을 닫는다.
+ * [원리] 모달 hidden 상태를 true로 바꾼다.
+ */
+function closeDriveFileModal(elements) {
+  elements.googleDriveFileModal.hidden = true;
 }
 
 /**
@@ -532,6 +602,36 @@ function rememberConnection(email) {
 }
 
 /**
+ * [함수] getRememberedLastOperation
+ * [역할] 기기에 저장된 마지막 Google Drive 작업 내역을 읽는다.
+ * [원리] 작업명과 작업 성공 시각을 localStorage에서 파싱하고 값이 없으면 null을 반환한다.
+ */
+function getRememberedLastOperation() {
+  try {
+    const data = JSON.parse(localStorage.getItem(DRIVE_LAST_OPERATION_KEY) || "null");
+    if (!data?.name || !data?.createdAt) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * [함수] rememberLastOperation
+ * [역할] 마지막 Google Drive 작업 내역을 현재 기기에 저장한다.
+ * [원리] Drive 파일 modifiedTime 대신 작업이 성공한 순간의 기기 시간을 기준으로 기록한다.
+ */
+function rememberLastOperation(name, createdAt = new Date().toISOString()) {
+  localStorage.setItem(
+    DRIVE_LAST_OPERATION_KEY,
+    JSON.stringify({
+      name,
+      createdAt,
+    }),
+  );
+}
+
+/**
  * [함수] forgetConnection
  * [역할] 저장된 Google Drive 연결 기억을 삭제한다.
  * [원리] localStorage의 연결 메타 키를 제거한다.
@@ -563,6 +663,64 @@ function renderDriveConnection(elements, detail) {
  */
 function renderDriveOperationResult(elements, message) {
   elements.googleDriveOperationStatus.textContent = message;
+}
+
+/**
+ * [함수] renderDriveFileMessage
+ * [역할] Google Drive 파일 팝업에 단순 안내 문구를 표시한다.
+ * [원리] 파일이 없거나 오류가 났을 때 공통 빈 상태 UI를 넣는다.
+ */
+function renderDriveFileMessage(elements, message) {
+  elements.googleDriveFileContent.innerHTML = `
+    <div class="google-drive-file-state">${escapeHTML(message)}</div>
+  `;
+}
+
+/**
+ * [함수] renderDriveFileContent
+ * [역할] Google Drive 백업 파일의 덱 목록과 수정 시간을 표시한다.
+ * [원리] 백업 JSON의 decks 배열을 리스트로 만들고 Drive 파일 수정 시간은 하단 보조 문구로 표시한다.
+ */
+function renderDriveFileContent(elements, file, backup) {
+  const decks = Array.isArray(backup?.decks) ? backup.decks : [];
+  const deckItems = decks.length
+    ? decks.map((deck) => `
+        <li>
+          <strong>${escapeHTML(deck.name || "이름 없는 덱")}</strong>
+          <small>${escapeHTML(formatDeckMeta(deck))}</small>
+        </li>
+      `).join("")
+    : `<li class="empty-drive-file-item">저장된 덱이 없습니다.</li>`;
+
+  elements.googleDriveFileContent.innerHTML = `
+    <section class="google-drive-file-list-section">
+      <ul class="google-drive-file-list">${deckItems}</ul>
+      <p class="google-drive-file-modified">Drive 수정 시간 : ${escapeHTML(formatOperationDate(file.modifiedTime))}</p>
+    </section>
+  `;
+}
+
+/**
+ * [함수] formatDeckMeta
+ * [역할] 덱 목록에 표시할 카드 수와 수정 시간을 만든다.
+ * [원리] deck.rows 길이와 updatedAt/createdAt을 읽어 짧은 설명 문자열로 합친다.
+ */
+function formatDeckMeta(deck) {
+  const cardCount = Array.isArray(deck.rows) ? deck.rows.length : 0;
+  const time = deck.updatedAt || deck.createdAt || "";
+  const formattedTime = time ? formatOperationDate(time) : "수정 시간 없음";
+  return `${cardCount.toLocaleString("ko-KR")}개 카드 · ${formattedTime}`;
+}
+
+/**
+ * [함수] renderAndRememberLastOperation
+ * [역할] 작업 성공 시 마지막 작업 내역을 저장하고 화면에 즉시 반영한다.
+ * [원리] 한 번 만든 ISO 시각을 저장과 렌더링에 같이 사용해 기기별 표시가 흔들리지 않게 한다.
+ */
+function renderAndRememberLastOperation(elements, operationName) {
+  const createdAt = new Date().toISOString();
+  rememberLastOperation(operationName, createdAt);
+  renderDriveOperationResult(elements, formatLastOperation(operationName, createdAt));
 }
 
 /**

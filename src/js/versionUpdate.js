@@ -76,12 +76,11 @@ function getVersionInfoUrls() {
 /**
  * [함수] renderVersionState
  * [역할] 설정 화면의 버전 표시와 업데이트 버튼 상태를 갱신한다.
- * [원리] 현재/최신 버전 텍스트를 넣고 업데이트 가능 여부를 버튼 disabled/class에 반영한다.
+ * [원리] 현재/최신 버전 텍스트를 넣고 업데이트 가능 여부를 버튼 class에 반영한다.
  */
 function renderVersionState(elements, currentVersion, latestVersion, hasUpdate) {
   elements.appVersionDisplay.textContent = currentVersion;
   elements.latestVersionDisplay.textContent = latestVersion;
-  elements.appUpdateButton.disabled = !hasUpdate;
   elements.appUpdateButton.classList.toggle("has-update", hasUpdate);
   elements.settingsOpen.classList.toggle("has-update", hasUpdate);
 }
@@ -92,8 +91,12 @@ function renderVersionState(elements, currentVersion, latestVersion, hasUpdate) 
  * [원리] 브라우저 캐시와 서비스 워커 등록을 지운 뒤 cache-busting 쿼리를 붙여 현재 페이지를 다시 연다.
  */
 async function forceAppUpdate() {
-  if (!latestVersionInfo || compareVersions(latestVersionInfo.version, APP_VERSION) <= 0) return;
-  const shouldUpdate = window.confirm("최신 버전을 다운로드하고 앱을 다시 불러올까요?");
+  const hasUpdate = latestVersionInfo && compareVersions(latestVersionInfo.version, APP_VERSION) > 0;
+  const shouldUpdate = window.confirm(
+    hasUpdate
+      ? "최신 버전을 다운로드하고 앱을 다시 불러올까요?"
+      : "캐시를 지우고 최신 파일을 다시 불러올까요?",
+  );
   if (!shouldUpdate) return;
 
   try {

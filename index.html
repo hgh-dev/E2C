@@ -261,8 +261,8 @@
         </header>
         <div class="settings-body">
           <div class="settings-group">
-            <div class="settings-row google-drive-row">
-              <span>
+            <div id="googleDriveBrowse" class="settings-row google-drive-row" role="button" tabindex="0">
+              <span class="google-drive-row-copy">
                 <strong>Google Drive</strong>
                 <small id="googleDriveDetail">연결되지 않았습니다.</small>
               </span>
@@ -301,14 +301,35 @@
             <div class="settings-row">
               <span>
                 <strong>버전</strong>
-                <small>현재 <span id="appVersionDisplay">v1.0.1</span> / 최신 <span id="latestVersionDisplay">v1.0.1</span></small>
+                <small>현재 <span id="appVersionDisplay">v1.0.2</span> / 최신 <span id="latestVersionDisplay">v1.0.2</span></small>
               </span>
-              <button id="appUpdateButton" class="settings-update" type="button" disabled>업데이트</button>
+              <button id="appUpdateButton" class="settings-update" type="button">업데이트</button>
             </div>
           </div>
         </div>
       </section>
     </div>
+
+    <section id="googleDriveFileModal" class="modal centered-modal" aria-label="Google Drive 파일" hidden>
+      <div class="modal-backdrop" data-close-google-drive-files></div>
+      <article class="modal-card google-drive-file-modal-card">
+        <header class="modal-header">
+          <h2>Google Drive 파일</h2>
+          <button id="googleDriveFileClose" class="icon-button" type="button" aria-label="Google Drive 파일 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div id="googleDriveFileContent" class="modal-content google-drive-file-content">
+          연결된 Google Drive 백업 파일을 확인합니다.
+        </div>
+        <footer class="modal-footer-actions">
+          <button id="googleDriveFileConfirm" class="primary-action" type="button">확인</button>
+        </footer>
+      </article>
+    </section>
 
     <div
       id="importModal"
@@ -503,7 +524,7 @@
       hidden
     >
       <div class="modal-backdrop" data-close-modal></div>
-      <article class="modal-card detail-modal-card">
+      <article id="detailCurrentCard" class="modal-card detail-modal-card">
         <header class="modal-header">
           <button id="modalTitle" class="detail-title-copy" type="button"></button>
           <button id="modalClose" class="icon-button" type="button" aria-label="상세보기 닫기">
@@ -515,6 +536,7 @@
         </header>
         <div id="modalContent" class="modal-content"></div>
       </article>
+      <article id="detailPreviewCard" class="modal-card detail-modal-card detail-preview-card" aria-hidden="true" hidden></article>
     </div>
     <div id="copyToast" class="copy-toast" role="status" aria-live="polite" hidden>
       복사되었습니다.

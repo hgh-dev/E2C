@@ -170,7 +170,7 @@ export function createCardListController({
 
     const rowIndex = Number(detailButton.dataset.rowIndex);
     const row = visibleRows[rowIndex];
-    if (row) openDetailModal(row, state, rowIndex);
+    if (row) openDetailModal(row, state, rowIndex, visibleRows);
   }
 
   /**
