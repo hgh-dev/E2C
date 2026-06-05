@@ -22,8 +22,11 @@ export function createEmptyState() {
     columns: [],
     rows: [],
     titleColumn: "",
+    titleColumnCount: 1,
     subtitleColumn1: "",
     subtitleColumn2: "",
+    subtitleColumn3: "",
+    subtitleColumn4: "",
     displayColumns: [],
     filterColumn: "",
     filterValue: "",
@@ -58,8 +61,11 @@ export function cloneState(source) {
     columns: [...source.columns],
     rows: source.rows.map((row) => ({ ...row })),
     titleColumn: source.titleColumn,
-    subtitleColumn1: source.subtitleColumn1,
-    subtitleColumn2: source.subtitleColumn2,
+    titleColumnCount: getTitleColumnCount(source),
+    subtitleColumn1: source.subtitleColumn1 || "",
+    subtitleColumn2: source.subtitleColumn2 || "",
+    subtitleColumn3: source.subtitleColumn3 || "",
+    subtitleColumn4: source.subtitleColumn4 || "",
     displayColumns: [...source.displayColumns],
     filterColumn: source.filterColumn,
     filterValue: source.filterValue,
@@ -93,8 +99,11 @@ export function copyState(source, target) {
   target.columns = [...source.columns];
   target.rows = source.rows.map((row) => ({ ...row }));
   target.titleColumn = source.titleColumn;
-  target.subtitleColumn1 = source.subtitleColumn1;
-  target.subtitleColumn2 = source.subtitleColumn2;
+  target.titleColumnCount = getTitleColumnCount(source);
+  target.subtitleColumn1 = source.subtitleColumn1 || "";
+  target.subtitleColumn2 = source.subtitleColumn2 || "";
+  target.subtitleColumn3 = source.subtitleColumn3 || "";
+  target.subtitleColumn4 = source.subtitleColumn4 || "";
   target.displayColumns = [...source.displayColumns];
   target.filterColumn = source.filterColumn;
   target.filterValue = source.filterValue;
@@ -128,8 +137,11 @@ export function serializeState(source) {
     columns: source.columns,
     rows: source.rows,
     titleColumn: source.titleColumn,
-    subtitleColumn1: source.subtitleColumn1,
-    subtitleColumn2: source.subtitleColumn2,
+    titleColumnCount: getTitleColumnCount(source),
+    subtitleColumn1: source.subtitleColumn1 || "",
+    subtitleColumn2: source.subtitleColumn2 || "",
+    subtitleColumn3: source.subtitleColumn3 || "",
+    subtitleColumn4: source.subtitleColumn4 || "",
     displayColumns: source.displayColumns,
     filterColumn: source.filterColumn,
     filterValue: source.filterValue,
@@ -308,4 +320,25 @@ function normalizeFilterValues(filter) {
   }
 
   return filter.value ? [filter.value] : [];
+}
+
+/**
+ * [함수] getTitleColumnCount
+ * [역할] 제목 열 입력칸을 몇 개까지 보여줄지 계산한다.
+ * [원리] 저장된 titleColumnCount와 실제 선택된 제목/부제목 위치를 함께 보고 1~5 범위로 제한한다.
+ */
+function getTitleColumnCount(source) {
+  const selectedColumns = [
+    source.titleColumn,
+    source.subtitleColumn1,
+    source.subtitleColumn2,
+    source.subtitleColumn3,
+    source.subtitleColumn4,
+  ];
+  const lastSelectedIndex = selectedColumns.reduce(
+    (lastIndex, column, index) => (column ? index : lastIndex),
+    0,
+  );
+  const requestedCount = Number(source.titleColumnCount) || 1;
+  return Math.min(5, Math.max(1, requestedCount, lastSelectedIndex + 1));
 }

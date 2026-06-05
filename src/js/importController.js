@@ -103,6 +103,75 @@ export function createImportController({
   }
 
   /**
+   * [함수] handleSubtitleColumn3Change
+   * [역할] 세 번째 부제목열 변경을 처리한다.
+   * [원리] 부제목열도 카드 제목 영역에 쓰이므로 표시할 열에서 제외되게 맞춘다.
+   */
+  function handleSubtitleColumn3Change(event) {
+    draftState.subtitleColumn3 = event.target.value;
+    syncDisplayColumnsWithTitleColumns();
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] handleSubtitleColumn4Change
+   * [역할] 네 번째 부제목열 변경을 처리한다.
+   * [원리] 부제목열도 카드 제목 영역에 쓰이므로 표시할 열에서 제외되게 맞춘다.
+   */
+  function handleSubtitleColumn4Change(event) {
+    draftState.subtitleColumn4 = event.target.value;
+    syncDisplayColumnsWithTitleColumns();
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] addTitleColumn
+   * [역할] 카드 제목 열 입력칸을 하나 추가로 표시한다.
+   * [원리] titleColumnCount를 최대 5까지 늘리고 draft 컨트롤을 다시 렌더링한다.
+   */
+  function addTitleColumn() {
+    draftState.titleColumnCount = Math.min(5, getTitleColumnCount(draftState) + 1);
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] removeTitleColumn
+   * [역할] 제목 2~5 중 사용자가 누른 제목 입력칸을 삭제한다.
+   * [원리] 삭제 위치 뒤의 제목열 값을 앞으로 당기고 마지막 칸은 비운 뒤 표시열 중복을 다시 정리한다.
+   */
+  function removeTitleColumn(event) {
+    const button = event.target.closest("[data-remove-title-column]");
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const titleIndex = Number(button.dataset.removeTitleColumn);
+    if (titleIndex <= 1 || titleIndex > 5) return;
+
+    const fields = getTitleColumnFields();
+    const fieldIndex = titleIndex - 1;
+    for (let index = fieldIndex; index < fields.length - 1; index += 1) {
+      draftState[fields[index]] = draftState[fields[index + 1]] || "";
+    }
+    draftState[fields[fields.length - 1]] = "";
+    draftState.titleColumnCount = Math.max(1, getTitleColumnCount(draftState) - 1);
+    syncDisplayColumnsWithTitleColumns();
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] syncDisplayColumnsWithTitleColumns
+   * [역할] 제목/부제목으로 선택한 열이 표시할 열 목록에 중복 표시되지 않도록 정리한다.
+   * [원리] getSelectedDisplayColumns가 계산한 실제 표시 가능 열만 draftState와 pendingDisplayColumns에 다시 저장한다.
+   */
+  function syncDisplayColumnsWithTitleColumns() {
+    const displayColumns = getSelectedDisplayColumns(draftState);
+    draftState.displayColumns = [...displayColumns];
+    pendingDisplayColumns = [...displayColumns];
+  }
+
+  /**
    * [함수] handleDisplayColumnsChange
    * [역할] 표시할 열 체크박스 변경을 임시 선택 목록에 반영한다.
    * [원리] 현재 체크된 값들을 읽고 선택 개수 요약을 갱신한다.
@@ -240,6 +309,39 @@ export function createImportController({
       return;
     }
 
+    await loadFileIntoDraft(file, previousDisplayMode);
+  }
+
+  /**
+   * [함수] handleFileDrop
+   * [역할] 메인 화면에 드롭한 엑셀/CSV 파일을 가져오기 설정 초안으로 읽는다.
+   * [원리] 활성 덱이 있을 때만 파일을 읽고, 읽기 성공 후 가져오기 설정 화면을 자동으로 연다.
+   */
+  async function handleFileDrop(event) {
+    event.preventDefault();
+
+    if (!hasActiveDeck()) {
+      openSidebar();
+      return;
+    }
+
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    draftState = cloneState(state);
+    const previousDisplayMode = draftState.displayMode || "scroll";
+    const loaded = await loadFileIntoDraft(file, previousDisplayMode);
+    if (!loaded) return;
+
+    openImportModal();
+  }
+
+  /**
+   * [함수] loadFileIntoDraft
+   * [역할] 파일 객체를 읽어 가져오기 초안 상태에 반영한다.
+   * [원리] input 선택과 드래그앤드롭이 같은 파일 파싱/기본 열 추천 흐름을 공유한다.
+   */
+  async function loadFileIntoDraft(file, previousDisplayMode) {
     try {
       const workbook = await readFileAsWorkbook(file);
       draftState = createEmptyState();
@@ -249,19 +351,21 @@ export function createImportController({
       draftState.sheetNames = workbook.SheetNames;
       draftState.activeSheetName = workbook.SheetNames[0] || "";
       loadActiveSheet(draftState);
+      return true;
     } catch (error) {
       draftState = createEmptyState();
       draftState.displayMode = previousDisplayMode;
       renderDraftControls();
       if (error.message === "UNSUPPORTED_FILE") {
         showMessage("xlsx, xls, csv 파일만 지원합니다.");
-        return;
+        return false;
       }
       if (error.message === "SHEETJS_NOT_LOADED") {
         showMessage("엑셀 파서가 로드되지 않았습니다. 네트워크 연결을 확인하세요.");
-        return;
+        return false;
       }
       showMessage("파일을 읽는 중 문제가 발생했습니다.");
+      return false;
     }
   }
 
@@ -313,22 +417,57 @@ export function createImportController({
   return {
     applyDisplayColumnsSettings,
     applyImportSettings,
+    addTitleColumn,
     cancelDisplayColumnsSettings,
     cancelImportSettings,
     handleDisplayColumnsAllChange,
     handleDisplayColumnsChange,
     handleDisplayModeChange,
+    handleFileDrop,
     handleFileChange,
     handleHeaderRowChange,
     handleSheetChange,
     handleSubtitleColumn1Change,
     handleSubtitleColumn2Change,
+    handleSubtitleColumn3Change,
+    handleSubtitleColumn4Change,
     handleTitleColumnChange,
     openDisplayColumnsSettings,
     openDisplayModeSettings,
     openImportSettings,
+    removeTitleColumn,
     resetDraftFromState,
   };
+}
+
+/**
+ * [함수] getTitleColumnFields
+ * [역할] 제목 1~5가 저장되는 상태 필드명을 순서대로 반환한다.
+ * [원리] 제목 삭제 시 뒤 필드 값을 앞으로 당기기 위한 공통 순서 목록이다.
+ */
+function getTitleColumnFields() {
+  return [
+    "titleColumn",
+    "subtitleColumn1",
+    "subtitleColumn2",
+    "subtitleColumn3",
+    "subtitleColumn4",
+  ];
+}
+
+/**
+ * [함수] getTitleColumnCount
+ * [역할] 제목 입력칸을 몇 개 표시해야 하는지 계산한다.
+ * [원리] titleColumnCount와 실제 선택된 제목열 위치를 함께 보고 1~5 범위로 제한한다.
+ */
+function getTitleColumnCount(source) {
+  const fields = getTitleColumnFields();
+  const lastSelectedIndex = fields.reduce(
+    (lastIndex, field, index) => (source[field] ? index : lastIndex),
+    0,
+  );
+  const requestedCount = Number(source.titleColumnCount) || 1;
+  return Math.min(5, Math.max(1, requestedCount, lastSelectedIndex + 1));
 }
 
 /**

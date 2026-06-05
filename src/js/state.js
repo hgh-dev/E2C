@@ -16,8 +16,11 @@ export const state = {
   columns: [],
   rows: [],
   titleColumn: "",
+  titleColumnCount: 1,
   subtitleColumn1: "",
   subtitleColumn2: "",
+  subtitleColumn3: "",
+  subtitleColumn4: "",
   displayColumns: [],
   filterColumn: "",
   filterValue: "",
@@ -48,8 +51,11 @@ export function resetDataState() {
   state.columns = [];
   state.rows = [];
   state.titleColumn = "";
+  state.titleColumnCount = 1;
   state.subtitleColumn1 = "";
   state.subtitleColumn2 = "";
+  state.subtitleColumn3 = "";
+  state.subtitleColumn4 = "";
   state.displayColumns = [];
   state.filterColumn = "";
   state.filterValue = "";

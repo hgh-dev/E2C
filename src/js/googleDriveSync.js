@@ -718,10 +718,11 @@ function renderDriveFileContent(elements, file, backup) {
 /**
  * [함수] formatDeckMeta
  * [역할] 덱 목록에 표시할 카드 수와 수정 시간을 만든다.
- * [원리] deck.rows 길이와 updatedAt/createdAt을 읽어 짧은 설명 문자열로 합친다.
+ * [원리] 덱 저장 구조의 data.rows 길이와 updatedAt/createdAt을 읽어 짧은 설명 문자열로 합친다.
  */
 function formatDeckMeta(deck) {
-  const cardCount = Array.isArray(deck.rows) ? deck.rows.length : 0;
+  const rows = Array.isArray(deck.data?.rows) ? deck.data.rows : deck.rows;
+  const cardCount = Array.isArray(rows) ? rows.length : 0;
   const time = deck.updatedAt || deck.createdAt || "";
   const formattedTime = time ? formatOperationDate(time) : "수정 시간 없음";
   return `${cardCount.toLocaleString("ko-KR")}개 카드 · ${formattedTime}`;

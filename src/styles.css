@@ -1075,6 +1075,7 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: space-between;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
@@ -1176,12 +1177,17 @@ main {
 }
 
 .file-name {
+  flex: 1 1 auto;
   min-width: 0;
   color: var(--muted);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-picker {
+  flex: 0 0 auto;
 }
 
 .control-grid {
@@ -1199,7 +1205,7 @@ main {
 .field > span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .field-title-row {
@@ -1247,6 +1253,80 @@ main {
   white-space: nowrap;
 }
 
+.control-button.has-control-preview {
+  display: grid;
+  gap: 2px;
+  min-height: 46px;
+  align-content: center;
+  white-space: normal;
+}
+
+.control-button.has-display-column-chips {
+  display: block;
+  min-height: 46px;
+  max-height: 142px;
+  padding: 7px;
+  overflow: auto;
+  white-space: normal;
+}
+
+.display-column-chip-list {
+  display: grid;
+  gap: 6px;
+}
+
+.display-column-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 7px 8px;
+}
+
+.display-column-chip-title,
+.display-column-chip-preview {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.display-column-chip-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.display-column-chip-preview {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.control-button-label,
+.control-button-preview,
+.select-button-label,
+.select-button-preview {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.control-button-preview,
+.select-button-preview {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
 .control-button:disabled {
   color: #9ca3af;
   background: #eef0f3;
@@ -1256,7 +1336,10 @@ main {
 .field-hint {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .select-button,
@@ -1281,6 +1364,14 @@ main {
   white-space: nowrap;
 }
 
+.select-button.has-select-preview {
+  display: grid;
+  gap: 2px;
+  min-height: 46px;
+  align-content: center;
+  white-space: normal;
+}
+
 .select-button::after {
   content: "";
   position: absolute;
@@ -1298,6 +1389,69 @@ main {
   color: #9ca3af;
   background: #eef0f3;
   cursor: default;
+}
+
+.import-section-title {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding-top: 11px;
+  padding-bottom: 2px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.import-section-title:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.title-columns-field {
+  grid-column: 1 / -1;
+}
+
+.title-columns-list {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 7px;
+}
+
+.title-column-field {
+  min-width: 0;
+}
+
+.title-column-field[hidden] {
+  display: none;
+}
+
+.title-column-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mini-remove-button {
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.title-column-add {
+  min-height: 30px;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .display-columns-field {
@@ -1802,6 +1956,8 @@ main {
 .detail-modal-card {
   --detail-swipe-x: 0px;
   --detail-swipe-rotate: 0deg;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   z-index: 2;
   width: min(520px, calc(100vw - 28px));
   border-radius: var(--radius);
@@ -1868,6 +2024,7 @@ main {
 }
 
 .detail-title-copy {
+  flex: 1 1 auto;
   min-width: 0;
   border: 0;
   background: transparent;
@@ -1884,6 +2041,29 @@ main {
 .detail-title-copy:focus-visible {
   outline: 2px solid #111111;
   outline-offset: 3px;
+}
+
+.detail-edit-field {
+  gap: 5px;
+}
+
+.detail-edit-input {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 8px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.detail-edit-input:focus {
+  outline: 2px solid #111111;
+  outline-offset: 1px;
 }
 
 .icon-button {
@@ -1905,6 +2085,16 @@ main {
   max-height: calc(min(82vh, 760px) - 71px);
   overflow: auto;
   padding: 12px;
+}
+
+.detail-modal-card .modal-content {
+  min-height: 0;
+  max-height: none;
+}
+
+#detailEdit[hidden],
+#detailEditFooter[hidden] {
+  display: none;
 }
 
 .select-option-list {

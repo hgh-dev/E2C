@@ -49,7 +49,36 @@ export function renderControls({
   });
   elements.subtitleColumn2Select.disabled = !hasColumns;
 
+  populateSelect(elements.subtitleColumn3Select, columnOptions, state.subtitleColumn3, {
+    value: "",
+    label: "사용 안 함",
+  });
+  elements.subtitleColumn3Select.disabled = !hasColumns;
+
+  populateSelect(elements.subtitleColumn4Select, columnOptions, state.subtitleColumn4, {
+    value: "",
+    label: "사용 안 함",
+  });
+  elements.subtitleColumn4Select.disabled = !hasColumns;
+
+  renderTitleColumnControls(elements, state, hasColumns);
   renderDisplayColumnOptions(elements, state, getTitleColumns, syncDisplayColumnsModalSummary);
+}
+
+/**
+ * [함수] renderTitleColumnControls
+ * [역할] 제목 1~5 입력칸 중 현재 필요한 개수만 표시한다.
+ * [원리] titleColumnCount와 실제 선택된 제목열 위치를 함께 계산하고 추가 버튼은 최대 5개까지만 노출한다.
+ */
+function renderTitleColumnControls(elements, state, hasColumns) {
+  const titleColumnCount = getTitleColumnCount(state);
+  state.titleColumnCount = titleColumnCount;
+
+  elements.titleColumnFields.forEach((field, index) => {
+    field.hidden = index >= titleColumnCount;
+  });
+  elements.addTitleColumn.hidden = titleColumnCount >= 5;
+  elements.addTitleColumn.disabled = !hasColumns || titleColumnCount >= 5;
 }
 
 /**
@@ -206,10 +235,20 @@ function renderDisplayColumnOptions(elements, state, getTitleColumns, syncDispla
 
   syncDisplayColumnsModalSummary();
   elements.displayColumnsOpen.disabled = !hasColumns;
-  elements.displayColumnsOpen.textContent = selectedColumns.size
-    ? getSelectedDisplayColumns(state, getTitleColumns).join(", ")
-    : "선택된 열 없음";
-  elements.displayColumnsSummary.textContent = `${selectedColumns.size} / ${selectableColumns.length}개 선택`;
+  renderDisplayColumnsOpenButton(elements, state, getTitleColumns);
+}
+
+/**
+ * [함수] renderDisplayColumnsOpenButton
+ * [역할] 표시할 열 선택 상태를 설정 화면에서 짧게 요약한다.
+ * [원리] 버튼에는 선택 개수만, 보조 문구에는 앞쪽 열 이름만 보여 화면 밀도를 낮춘다.
+ */
+function renderDisplayColumnsOpenButton(elements, state, getTitleColumns) {
+  const selectedDisplayColumns = getSelectedDisplayColumns(state, getTitleColumns);
+  const summary = getColumnSummary(selectedDisplayColumns);
+  elements.displayColumnsOpen.classList.remove("has-control-preview", "has-display-column-chips");
+  elements.displayColumnsOpen.textContent = selectedDisplayColumns.length ? summary : "선택된 열 없음";
+  elements.displayColumnsSummary.textContent = "";
 }
 
 /**
@@ -234,4 +273,37 @@ function getColumnPreview(rows, column) {
   const uniqueValues = [...new Set(values)].slice(0, 4);
 
   return uniqueValues.length ? `${uniqueValues.join(" / ")} / ...` : "";
+}
+
+/**
+ * [함수] getColumnSummary
+ * [역할] 표시할 열 선택 상태를 설정 화면용 짧은 문장으로 만든다.
+ * [원리] 앞쪽 열 이름만 보여주고 나머지는 개수로 접어 화면 밀도를 낮춘다.
+ */
+function getColumnSummary(columns) {
+  if (!columns.length) return "0개 선택";
+  const visibleColumns = columns.slice(0, 3).join(", ");
+  const restCount = columns.length - 3;
+  return restCount > 0 ? `${visibleColumns} 외 ${restCount}개` : visibleColumns;
+}
+
+/**
+ * [함수] getTitleColumnCount
+ * [역할] 가져오기 설정에서 표시할 제목 입력칸 개수를 계산한다.
+ * [원리] 저장된 개수와 실제 선택된 제목열 위치를 함께 보고 1~5 범위로 제한한다.
+ */
+function getTitleColumnCount(state) {
+  const titleColumns = [
+    state.titleColumn,
+    state.subtitleColumn1,
+    state.subtitleColumn2,
+    state.subtitleColumn3,
+    state.subtitleColumn4,
+  ];
+  const lastSelectedIndex = titleColumns.reduce(
+    (lastIndex, column, index) => (column ? index : lastIndex),
+    0,
+  );
+  const requestedCount = Number(state.titleColumnCount) || 1;
+  return Math.min(5, Math.max(1, requestedCount, lastSelectedIndex + 1));
 }

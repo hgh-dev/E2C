@@ -304,7 +304,7 @@
             <div class="settings-row">
               <span>
                 <strong>버전</strong>
-                <small>현재 <span id="appVersionDisplay">v1.0.2</span> / 최신 <span id="latestVersionDisplay">v1.0.2</span></small>
+                <small>현재 <span id="appVersionDisplay">v1.0.3</span> / 최신 <span id="latestVersionDisplay">v1.0.3</span></small>
               </span>
               <button id="appUpdateButton" class="settings-update" type="button">업데이트</button>
             </div>
@@ -354,6 +354,7 @@
         </header>
         <section class="import-screen-body" aria-label="파일 및 카드 설정">
           <div class="file-row">
+            <span id="fileName" class="file-name">엑셀 파일을 선택하세요.</span>
             <label class="file-picker">
               <input
                 id="fileInput"
@@ -369,30 +370,59 @@
                 파일 선택
               </span>
             </label>
-            <span id="fileName" class="file-name">엑셀 파일을 선택하세요.</span>
           </div>
 
           <div class="control-grid">
+            <div class="import-section-title">파일</div>
             <label class="field">
               <span>시트</span>
-              <button id="sheetSelect" class="select-button" type="button" disabled></button>
+              <button id="sheetSelect" class="select-button" type="button" data-show-preview="false" disabled></button>
             </label>
             <label class="field">
               <span>표 시작 행</span>
-              <button id="headerRowSelect" class="select-button" type="button" disabled></button>
+              <button id="headerRowSelect" class="select-button" type="button" data-show-preview="false" disabled></button>
             </label>
-            <label class="field">
-              <span>카드 제목 열</span>
-              <button id="titleColumnSelect" class="select-button" type="button" disabled></button>
-            </label>
-            <label class="field">
-              <span>부제목 열 1</span>
-              <button id="subtitleColumn1Select" class="select-button" type="button" disabled></button>
-            </label>
-            <label class="field">
-              <span>부제목 열 2</span>
-              <button id="subtitleColumn2Select" class="select-button" type="button" disabled></button>
-            </label>
+            <div class="import-section-title">카드 제목</div>
+            <div class="title-columns-field">
+              <div id="titleColumnsList" class="title-columns-list">
+                <label class="field title-column-field" data-title-column-field="1">
+                  <span class="title-column-label">제목 1</span>
+                  <button id="titleColumnSelect" class="select-button" type="button" data-show-preview="false" disabled></button>
+                </label>
+                <label class="field title-column-field" data-title-column-field="2" hidden>
+                  <span class="field-title-row">
+                    <span class="title-column-label">제목 2</span>
+                    <button class="mini-remove-button" type="button" data-remove-title-column="2">삭제</button>
+                  </span>
+                  <button id="subtitleColumn1Select" class="select-button" type="button" data-show-preview="false" disabled></button>
+                </label>
+                <label class="field title-column-field" data-title-column-field="3" hidden>
+                  <span class="field-title-row">
+                    <span class="title-column-label">제목 3</span>
+                    <button class="mini-remove-button" type="button" data-remove-title-column="3">삭제</button>
+                  </span>
+                  <button id="subtitleColumn2Select" class="select-button" type="button" data-show-preview="false" disabled></button>
+                </label>
+                <label class="field title-column-field" data-title-column-field="4" hidden>
+                  <span class="field-title-row">
+                    <span class="title-column-label">제목 4</span>
+                    <button class="mini-remove-button" type="button" data-remove-title-column="4">삭제</button>
+                  </span>
+                  <button id="subtitleColumn3Select" class="select-button" type="button" data-show-preview="false" disabled></button>
+                </label>
+                <label class="field title-column-field" data-title-column-field="5" hidden>
+                  <span class="field-title-row">
+                    <span class="title-column-label">제목 5</span>
+                    <button class="mini-remove-button" type="button" data-remove-title-column="5">삭제</button>
+                  </span>
+                  <button id="subtitleColumn4Select" class="select-button" type="button" data-show-preview="false" disabled></button>
+                </label>
+                <button id="addTitleColumn" class="secondary-action title-column-add" type="button" disabled>
+                  + 제목 추가
+                </button>
+              </div>
+            </div>
+            <div class="import-section-title">카드 내용</div>
             <div class="field display-columns-field">
               <span>표시할 열</span>
               <button id="displayColumnsOpen" class="control-button" type="button" disabled>
@@ -530,6 +560,12 @@
       <article id="detailCurrentCard" class="modal-card detail-modal-card">
         <header class="modal-header">
           <button id="modalTitle" class="detail-title-copy" type="button"></button>
+          <button id="detailEdit" class="icon-button" type="button" aria-label="상세내용 수정">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
+            </svg>
+          </button>
           <button id="modalClose" class="icon-button" type="button" aria-label="상세보기 닫기">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18"></path>
@@ -538,6 +574,10 @@
           </button>
         </header>
         <div id="modalContent" class="modal-content"></div>
+        <footer id="detailEditFooter" class="modal-footer-actions" hidden>
+          <button id="detailEditCancel" class="secondary-action" type="button">취소</button>
+          <button id="detailEditSave" class="primary-action" type="button">확인</button>
+        </footer>
       </article>
       <article id="detailPreviewCard" class="modal-card detail-modal-card detail-preview-card" aria-hidden="true" hidden></article>
     </div>

@@ -113,9 +113,14 @@ const elements = {
   fileName: document.querySelector("#fileName"),
   sheetSelect: document.querySelector("#sheetSelect"),
   headerRowSelect: document.querySelector("#headerRowSelect"),
+  titleColumnsList: document.querySelector("#titleColumnsList"),
+  titleColumnFields: document.querySelectorAll("[data-title-column-field]"),
+  addTitleColumn: document.querySelector("#addTitleColumn"),
   titleColumnSelect: document.querySelector("#titleColumnSelect"),
   subtitleColumn1Select: document.querySelector("#subtitleColumn1Select"),
   subtitleColumn2Select: document.querySelector("#subtitleColumn2Select"),
+  subtitleColumn3Select: document.querySelector("#subtitleColumn3Select"),
+  subtitleColumn4Select: document.querySelector("#subtitleColumn4Select"),
   displayColumnsOpen: document.querySelector("#displayColumnsOpen"),
   displayColumnsSummary: document.querySelector("#displayColumnsSummary"),
   displayColumnsModal: document.querySelector("#displayColumnsModal"),
@@ -169,6 +174,10 @@ const elements = {
   modalTitle: document.querySelector("#modalTitle"),
   modalContent: document.querySelector("#modalContent"),
   modalClose: document.querySelector("#modalClose"),
+  detailEdit: document.querySelector("#detailEdit"),
+  detailEditFooter: document.querySelector("#detailEditFooter"),
+  detailEditCancel: document.querySelector("#detailEditCancel"),
+  detailEditSave: document.querySelector("#detailEditSave"),
   copyToast: document.querySelector("#copyToast"),
 };
 
@@ -182,6 +191,7 @@ let detailTouchCurrentX = 0;
 let detailTouchCurrentY = 0;
 let detailIsDragging = false;
 let detailPreviewOffset = 0;
+let detailEditMode = false;
 
 export const LABEL_OPTIONS = [
   { value: "red", label: "빨간색", color: "#ef4444" },
@@ -213,6 +223,8 @@ function getSelectModalTargets() {
     elements.titleColumnSelect,
     elements.subtitleColumn1Select,
     elements.subtitleColumn2Select,
+    elements.subtitleColumn3Select,
+    elements.subtitleColumn4Select,
     elements.searchColumnSelect,
   ].filter(Boolean);
 }
@@ -500,8 +512,11 @@ export function toggleSortPanel() {
  */
 export function applyDefaultColumns(state) {
   state.titleColumn = recommendTitleColumn(state.columns);
+  state.titleColumnCount = 1;
   state.subtitleColumn1 = "";
   state.subtitleColumn2 = "";
+  state.subtitleColumn3 = "";
+  state.subtitleColumn4 = "";
   state.displayColumns = getPreviewColumns(state.columns, getTitleColumns(state));
   state.filterColumn = "";
   state.filterValue = "";
@@ -562,6 +577,7 @@ export function openDetailModal(row, state, rowIndex, rows = [row]) {
   detailRows = rows;
   detailState = state;
   detailIndex = rowIndex;
+  detailEditMode = false;
   renderDetailModal(row, state, rowIndex);
   elements.detailModal.hidden = false;
   resetDetailSwipeTransform();
@@ -577,7 +593,11 @@ function renderDetailModal(row, state, rowIndex) {
   const title = getDisplayTitle(row, getTitleColumns(state), rowIndex);
   elements.modalTitle.textContent = title;
   elements.modalTitle.dataset.copyValue = title;
-  elements.modalContent.innerHTML = getDetailFieldMarkup(row, state, true);
+  elements.modalTitle.disabled = detailEditMode;
+  renderDetailEditActions();
+  elements.modalContent.innerHTML = detailEditMode
+    ? getDetailEditFieldMarkup(row, state)
+    : getDetailFieldMarkup(row, state, true);
 }
 
 /**
@@ -620,6 +640,81 @@ function getDetailFieldMarkup(row, state, interactive) {
 }
 
 /**
+ * [함수] getDetailEditFieldMarkup
+ * [역할] 상세 모달 수정 모드의 입력 필드 목록 HTML을 만든다.
+ * [원리] 각 열 이름을 data 속성에 넣고 현재 값을 textarea에 채워 확인 시 다시 행 데이터로 반영한다.
+ */
+function getDetailEditFieldMarkup(row, state) {
+  return state.columns
+    .map((column) => {
+      const value = normalizeValue(row[column]);
+      return `
+        <label class="detail-field detail-edit-field">
+          <span class="field-name">${escapeHTML(column)}</span>
+          <textarea class="detail-edit-input" data-detail-edit-column="${escapeHTML(column)}" rows="2">${escapeHTML(value)}</textarea>
+        </label>
+      `;
+    })
+    .join("");
+}
+
+/**
+ * [함수] enterDetailEditMode
+ * [역할] 상세 모달을 읽기 모드에서 수정 모드로 전환한다.
+ * [원리] 현재 상세 행을 textarea 목록으로 다시 렌더링하고 첫 입력칸에 포커스를 둔다.
+ */
+export function enterDetailEditMode() {
+  if (elements.detailModal.hidden || !detailState || detailIndex < 0) return;
+
+  detailEditMode = true;
+  renderDetailModal(detailRows[detailIndex], detailState, detailIndex);
+  elements.modalContent.querySelector("[data-detail-edit-column]")?.focus();
+}
+
+/**
+ * [함수] cancelDetailEditMode
+ * [역할] 상세 모달 수정 모드를 취소한다.
+ * [원리] 행 데이터는 건드리지 않고 읽기 모드로 다시 렌더링한다.
+ */
+export function cancelDetailEditMode() {
+  if (elements.detailModal.hidden || !detailState || detailIndex < 0) return;
+
+  detailEditMode = false;
+  renderDetailModal(detailRows[detailIndex], detailState, detailIndex);
+}
+
+/**
+ * [함수] saveDetailEdits
+ * [역할] 상세 모달 입력값을 현재 행 데이터에 반영한다.
+ * [원리] data-detail-edit-column 속성을 기준으로 각 textarea 값을 원본 row 객체에 저장한다.
+ */
+export function saveDetailEdits() {
+  if (elements.detailModal.hidden || !detailState || detailIndex < 0) return false;
+
+  const row = detailRows[detailIndex];
+  if (!row) return false;
+
+  elements.modalContent.querySelectorAll("[data-detail-edit-column]").forEach((input) => {
+    row[input.dataset.detailEditColumn] = input.value;
+  });
+
+  detailEditMode = false;
+  renderDetailModal(row, detailState, detailIndex);
+  showToast("저장되었습니다.");
+  return true;
+}
+
+/**
+ * [함수] renderDetailEditActions
+ * [역할] 상세 모달 헤더의 수정/취소/확인 버튼 표시 상태를 맞춘다.
+ * [원리] 수정 모드 여부에 따라 읽기 버튼과 편집 버튼 묶음을 토글한다.
+ */
+function renderDetailEditActions() {
+  elements.detailEdit.hidden = detailEditMode;
+  elements.detailEditFooter.hidden = !detailEditMode;
+}
+
+/**
  * [함수] showPreviousDetailCard
  * [역할] 상세 모달에서 이전 카드 내용을 표시한다.
  * [원리] 현재 visibleRows 인덱스를 하나 줄이고 유효 범위 안이면 상세 내용을 다시 렌더링한다.
@@ -648,6 +743,7 @@ function showDetailCardByOffset(offset) {
   const nextIndex = detailIndex + offset;
   if (nextIndex < 0 || nextIndex >= detailRows.length) return;
 
+  detailEditMode = false;
   detailIndex = nextIndex;
   renderDetailModal(detailRows[detailIndex], detailState, detailIndex);
   animateDetailSwipeIn(offset);
@@ -663,6 +759,8 @@ export function closeDetailModal() {
   detailRows = [];
   detailState = null;
   detailIndex = -1;
+  detailEditMode = false;
+  renderDetailEditActions();
   resetDetailSwipeTransform();
 }
 
@@ -672,6 +770,8 @@ export function closeDetailModal() {
  * [원리] 터치 시작점의 x/y를 저장해 종료 시 이동 거리와 방향을 판정한다.
  */
 export function handleDetailTouchStart(event) {
+  if (detailEditMode) return;
+
   const touch = event.touches?.[0];
   if (!touch) return;
 
@@ -692,6 +792,8 @@ export function handleDetailTouchStart(event) {
  * [원리] 가로 이동이 세로 이동보다 충분히 클 때 카드에 translateX와 약한 회전을 적용한다.
  */
 export function handleDetailTouchMove(event) {
+  if (detailEditMode) return;
+
   const touch = event.touches?.[0];
   if (!touch) return;
 
@@ -728,6 +830,8 @@ export function handleDetailTouchMove(event) {
  * [원리] 가로 이동이 충분하고 세로 이동보다 클 때만 카드 전환으로 처리한다.
  */
 export function handleDetailTouchEnd(event) {
+  if (detailEditMode) return;
+
   const touch = event.changedTouches?.[0];
   if (!touch) return;
 
@@ -905,7 +1009,7 @@ export async function copyTextValue(value) {
     copyTextWithFallback(text);
   }
 
-  showCopyToast();
+  showToast("복사되었습니다.");
 }
 
 /**
@@ -926,12 +1030,13 @@ function copyTextWithFallback(text) {
 }
 
 /**
- * [함수] showCopyToast
- * [역할] 복사 완료 알림을 짧게 표시한다.
- * [원리] 기존 타이머를 지우고 1.4초 뒤 자동으로 숨기는 새 타이머를 등록한다.
+ * [함수] showToast
+ * [역할] 복사/저장 같은 짧은 완료 알림을 표시한다.
+ * [원리] 기존 타이머를 지우고 메시지를 교체한 뒤 1.4초 뒤 자동으로 숨긴다.
  */
-function showCopyToast() {
+function showToast(message) {
   window.clearTimeout(copyToastTimer);
+  elements.copyToast.textContent = message;
   elements.copyToast.hidden = false;
   copyToastTimer = window.setTimeout(() => {
     elements.copyToast.hidden = true;
@@ -944,7 +1049,15 @@ function showCopyToast() {
  * [원리] 빈 값은 제거하고 Set으로 중복 열을 한 번만 남긴다.
  */
 export function getTitleColumns(state) {
-  return [...new Set([state.titleColumn, state.subtitleColumn1, state.subtitleColumn2].filter(Boolean))];
+  return [
+    ...new Set([
+      state.titleColumn,
+      state.subtitleColumn1,
+      state.subtitleColumn2,
+      state.subtitleColumn3,
+      state.subtitleColumn4,
+    ].filter(Boolean)),
+  ];
 }
 
 /**

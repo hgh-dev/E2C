@@ -28,6 +28,8 @@ import {
   closeSortPanel,
   closeSidebar,
   copyTextValue,
+  cancelDetailEditMode,
+  enterDetailEditMode,
   getAllSelectableDisplayColumns,
   getDisplayColumnCheckboxValues,
   getSelectedDisplayColumns,
@@ -51,6 +53,7 @@ import {
   renderDeckList,
   renderPageControls,
   renderSearchControl,
+  saveDetailEdits,
   setDisplayColumnCheckboxValues,
   setSidebarTab,
   setupSelectModalTriggers,
@@ -166,6 +169,9 @@ async function init() {
  */
 function bindEvents() {
   setupSelectModalTriggers();
+  const mainArea = document.querySelector("main");
+  mainArea.addEventListener("dragover", handleMainFileDragOver);
+  mainArea.addEventListener("drop", importController.handleFileDrop);
   elements.sidebarOpen.addEventListener("click", openSidebar);
   elements.sidebarClose.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
@@ -193,6 +199,10 @@ function bindEvents() {
   elements.titleColumnSelect.addEventListener("change", importController.handleTitleColumnChange);
   elements.subtitleColumn1Select.addEventListener("change", importController.handleSubtitleColumn1Change);
   elements.subtitleColumn2Select.addEventListener("change", importController.handleSubtitleColumn2Change);
+  elements.subtitleColumn3Select.addEventListener("change", importController.handleSubtitleColumn3Change);
+  elements.subtitleColumn4Select.addEventListener("change", importController.handleSubtitleColumn4Change);
+  elements.addTitleColumn.addEventListener("click", importController.addTitleColumn);
+  elements.titleColumnsList.addEventListener("click", importController.removeTitleColumn);
   elements.displayColumnsList.addEventListener("change", importController.handleDisplayColumnsChange);
   elements.displayColumnsOpen.addEventListener("click", importController.openDisplayColumnsSettings);
   elements.displayColumnsAll.addEventListener("change", importController.handleDisplayColumnsAllChange);
@@ -231,6 +241,15 @@ function bindEvents() {
   elements.detailModal.addEventListener("touchstart", handleDetailTouchStart, { passive: true });
   elements.detailModal.addEventListener("touchmove", handleDetailTouchMove);
   elements.detailModal.addEventListener("touchend", handleDetailTouchEnd);
+  elements.detailEdit.addEventListener("click", enterDetailEditMode);
+  elements.detailEditCancel.addEventListener("click", cancelDetailEditMode);
+  elements.detailEditSave.addEventListener("click", async () => {
+    const saved = saveDetailEdits();
+    if (!saved) return;
+
+    await deckController.autoSaveActiveDeck();
+    render();
+  });
   elements.modalClose.addEventListener("click", closeDetailModal);
   document.querySelector("[data-close-modal]").addEventListener("click", closeDetailModal);
   elements.displayColumnsClose.addEventListener("click", closeDisplayColumnsModal);
@@ -266,6 +285,18 @@ function bindEvents() {
       closeSidebar();
     }
   });
+}
+
+/**
+ * [함수] handleMainFileDragOver
+ * [역할] 메인 화면에서 파일 드롭이 가능하도록 브라우저 기본 동작을 막는다.
+ * [원리] dragover에서 preventDefault를 호출해야 이후 drop 이벤트가 정상 발생한다.
+ */
+function handleMainFileDragOver(event) {
+  if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
 }
 
 /* ==========================================================================

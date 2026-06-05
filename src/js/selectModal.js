@@ -92,7 +92,7 @@ export function populateSelect(control, options, selectedValue = "", includeEmpt
 
   control.selectOptions = selectOptions;
   control.value = selectedOption.value;
-  control.textContent = selectedOption.label || "선택";
+  renderSelectControlValue(control, selectedOption);
 }
 
 /**
@@ -263,10 +263,32 @@ function handleSelectModalChoice(event) {
   }
 
   activeSelect.value = optionButton.dataset.selectValue;
-  activeSelect.textContent =
-    activeSelect.selectOptions?.find((option) => option.value === activeSelect.value)?.label || "선택";
+  renderSelectControlValue(
+    activeSelect,
+    activeSelect.selectOptions?.find((option) => option.value === activeSelect.value) || {
+      label: "선택",
+      preview: "",
+    },
+  );
   activeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   closeSelectModal();
+}
+
+/**
+ * [함수] renderSelectControlValue
+ * [역할] 버튼형 select에 현재 선택 라벨과 미리보기 내용을 표시한다.
+ * [원리] preview가 있으면 두 줄 구조로, 없으면 기존처럼 한 줄 라벨만 렌더링한다.
+ */
+function renderSelectControlValue(control, option) {
+  const label = option.label || "선택";
+  const preview = control.dataset.showPreview === "false" ? "" : option.preview || "";
+  control.classList.toggle("has-select-preview", Boolean(preview));
+  control.innerHTML = preview
+    ? `
+      <span class="select-button-label">${escapeHTML(label)}</span>
+      <span class="select-button-preview">${escapeHTML(preview)}</span>
+    `
+    : escapeHTML(label);
 }
 
 /**
