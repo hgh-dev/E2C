@@ -18,6 +18,7 @@ import {
   applyDefaultColumns,
   closeDetailModal,
   closeDisplayColumnsModal,
+  closeHeaderSettingsModal,
   closeDisplayModeModal,
   closeFilterPanel,
   closeImportModal,
@@ -38,6 +39,7 @@ import {
   handleDetailTouchMove,
   handleDetailTouchStart,
   openDisplayColumnsModal,
+  openHeaderSettingsModal,
   openDisplayModeModal,
   openImportModal,
   openLabelPalette,
@@ -84,8 +86,10 @@ const importController = createImportController({
   syncDisplayColumnsModalSummary,
   openDisplayColumnsModal,
   closeDisplayColumnsModal,
+  closeHeaderSettingsModal,
   openDisplayModeModal,
   closeDisplayModeModal,
+  openHeaderSettingsModal,
   openImportModal,
   closeImportModal,
   openSidebar,
@@ -187,6 +191,10 @@ function bindEvents() {
     input.addEventListener("change", importController.handleDisplayModeChange);
   });
   elements.savedList.addEventListener("click", deckController.handleDeckClick);
+  elements.exportFormatClose.addEventListener("click", deckController.closeExportFormatModal);
+  document.querySelector("[data-close-export-format]").addEventListener("click", deckController.closeExportFormatModal);
+  elements.exportJson.addEventListener("click", deckController.exportDeckAsJson);
+  elements.exportExcel.addEventListener("click", deckController.exportDeckAsExcel);
   elements.newDeck.addEventListener("click", deckController.createDeck);
   elements.importSavedInput.addEventListener("change", deckController.importDecks);
   elements.importOpen.addEventListener("click", importController.openImportSettings);
@@ -196,6 +204,13 @@ function bindEvents() {
   elements.fileInput.addEventListener("change", importController.handleFileChange);
   elements.sheetSelect.addEventListener("change", importController.handleSheetChange);
   elements.headerRowSelect.addEventListener("change", importController.handleHeaderRowChange);
+  elements.headerSettingsOpen.addEventListener("click", importController.openHeaderSettings);
+  elements.headerSettingsClose.addEventListener("click", importController.closeHeaderSettings);
+  elements.headerSettingsDone.addEventListener("click", importController.closeHeaderSettings);
+  document.querySelector("[data-close-header-settings]").addEventListener("click", importController.closeHeaderSettings);
+  elements.headerAddColumn.addEventListener("click", importController.addHeaderColumn);
+  elements.headerSettingsList.addEventListener("click", importController.handleHeaderSettingsAction);
+  elements.headerSettingsList.addEventListener("pointerdown", importController.handleHeaderReorderPointerDown);
   elements.titleColumnSelect.addEventListener("change", importController.handleTitleColumnChange);
   elements.subtitleColumn1Select.addEventListener("change", importController.handleSubtitleColumn1Change);
   elements.subtitleColumn2Select.addEventListener("change", importController.handleSubtitleColumn2Change);
@@ -281,7 +296,9 @@ function bindEvents() {
       deckController.closeDeckMenus();
       closeLabelPalette();
       closeSearchPanel();
+      closeHeaderSettingsModal();
       importController.cancelImportSettings();
+      deckController.closeExportFormatModal();
       closeSidebar();
     }
   });

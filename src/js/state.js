@@ -14,6 +14,7 @@ export const state = {
   sheetMatrix: [],
   headerRowIndex: 0,
   columns: [],
+  hiddenColumns: [],
   rows: [],
   titleColumn: "",
   titleColumnCount: 1,
@@ -49,6 +50,7 @@ export function resetDataState() {
   state.sheetMatrix = [];
   state.headerRowIndex = 0;
   state.columns = [];
+  state.hiddenColumns = [];
   state.rows = [];
   state.titleColumn = "";
   state.titleColumnCount = 1;

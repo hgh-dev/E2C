@@ -32,7 +32,9 @@ export function renderControls({
   populateSelect(elements.headerRowSelect, headerRowOptions, String(state.headerRowIndex));
   elements.headerRowSelect.disabled = headerRowOptions.length === 0;
 
-  const columnOptions = getColumnOptions(state.columns, state.rows);
+  renderHeaderSettingsControls(elements, state, hasColumns);
+
+  const columnOptions = getColumnOptions(getVisibleColumns(state), state.rows);
 
   populateSelect(elements.titleColumnSelect, columnOptions, state.titleColumn);
   elements.titleColumnSelect.disabled = !hasColumns;
@@ -66,8 +68,52 @@ export function renderControls({
 }
 
 /**
+ * [함수] renderHeaderSettingsControls
+ * [역할] 헤더 설정 버튼 요약과 항목 설정 목록을 렌더링한다.
+ * [원리] 숨김 상태를 포함한 columns 순서를 기준으로 일반 모드와 순서 변경 모드 목록을 만든다.
+ */
+function renderHeaderSettingsControls(elements, state, hasColumns) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  const visibleColumns = state.columns.filter((column) => !hiddenColumns.has(column));
+  elements.headerSettingsOpen.disabled = !hasColumns;
+  elements.headerSettingsOpen.textContent = visibleColumns.length
+    ? getColumnSummary(visibleColumns)
+    : state.columns.length
+      ? "모든 항목 숨김"
+      : "헤더 설정";
+  elements.headerAddColumn.disabled = !hasColumns;
+  elements.headerSettingsList.innerHTML = state.columns.length
+    ? state.columns.map((column, index) => `
+        <div class="header-setting-item${hiddenColumns.has(column) ? " is-hidden" : ""}" data-header-drag-column="${escapeHTML(column)}">
+          <div class="header-setting-main">
+            <div class="header-setting-name">
+              <button type="button" class="header-setting-drag-handle" data-header-drag-handle data-column="${escapeHTML(column)}" aria-label="${escapeHTML(column)} 순서 변경">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14"></path>
+                  <path d="M5 12h14"></path>
+                  <path d="M5 17h14"></path>
+                </svg>
+              </button>
+              <strong>${escapeHTML(column)}</strong>
+              <button type="button" class="header-setting-edit" data-header-action="rename" data-column="${escapeHTML(column)}" aria-label="${escapeHTML(column)} 항목명 수정">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
+                </svg>
+              </button>
+            </div>
+            <button type="button" class="header-setting-visibility${hiddenColumns.has(column) ? " is-hidden" : ""}" data-header-action="toggle" data-column="${escapeHTML(column)}">
+              ${hiddenColumns.has(column) ? "숨김" : "표시"}
+            </button>
+          </div>
+        </div>
+      `).join("")
+    : '<div class="checkbox-empty">설정할 헤더가 없습니다.</div>';
+}
+
+/**
  * [함수] renderTitleColumnControls
- * [역할] 제목 1~5 입력칸 중 현재 필요한 개수만 표시한다.
+ * [역할] 제목 열 1~5 입력칸 중 현재 필요한 개수만 표시한다.
  * [원리] titleColumnCount와 실제 선택된 제목열 위치를 함께 계산하고 추가 버튼은 최대 5개까지만 노출한다.
  */
 function renderTitleColumnControls(elements, state, hasColumns) {
@@ -258,7 +304,13 @@ function renderDisplayColumnsOpenButton(elements, state, getTitleColumns) {
  */
 function getSelectableDisplayColumns(state, getTitleColumns) {
   const titleColumnSet = new Set(getTitleColumns(state));
-  return state.columns.filter((column) => !titleColumnSet.has(column));
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  return state.columns.filter((column) => !titleColumnSet.has(column) && !hiddenColumns.has(column));
+}
+
+function getVisibleColumns(state) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  return state.columns.filter((column) => !hiddenColumns.has(column));
 }
 
 /**

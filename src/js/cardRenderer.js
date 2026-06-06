@@ -101,7 +101,7 @@ function renderCard({
           <span class="card-title">${escapeHTML(title)}</span>
         </button>
       </div>
-      <div class="field-list">${fields || '<span class="field-value">표시할 열을 선택하세요.</span>'}</div>
+      <div class="field-list">${fields}</div>
     </article>
   `;
 }

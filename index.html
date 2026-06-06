@@ -191,6 +191,31 @@
       </article>
     </section>
 
+    <section id="exportFormatModal" class="modal centered-modal" aria-label="내보내기 형식 선택" hidden>
+      <div class="modal-backdrop" data-close-export-format></div>
+      <article class="modal-card export-format-modal-card">
+        <header class="modal-header">
+          <h2>내보내기</h2>
+          <button id="exportFormatClose" class="icon-button" type="button" aria-label="내보내기 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="modal-content export-format-list">
+          <button id="exportJson" class="export-format-option" type="button">
+            <strong>JSON</strong>
+            <span>덱 데이터와 가져오기 설정, 필터/정렬, 라벨 정보를 함께 백업합니다. 나중에 덱으로 다시 불러올 수 있습니다.</span>
+          </button>
+          <button id="exportExcel" class="export-format-option" type="button">
+            <strong>엑셀 파일</strong>
+            <span>현재 덱의 카드 데이터를 xlsx 파일로 다운로드합니다. 원본 파일에서 설정한 셀 색상, 테두리, 병합, 열 너비 등의 서식은 유지되지 않습니다.</span>
+          </button>
+        </div>
+      </article>
+    </section>
+
     <aside id="sidebar" class="sidebar" aria-label="덱" hidden>
       <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
       <section class="sidebar-panel">
@@ -382,37 +407,43 @@
               <span>표 시작 행</span>
               <button id="headerRowSelect" class="select-button" type="button" data-show-preview="false" disabled></button>
             </label>
+            <div class="field display-columns-field">
+              <span>헤더 설정</span>
+              <button id="headerSettingsOpen" class="control-button" type="button" disabled>
+                헤더 설정
+              </button>
+            </div>
             <div class="import-section-title">카드 제목</div>
             <div class="title-columns-field">
               <div id="titleColumnsList" class="title-columns-list">
                 <label class="field title-column-field" data-title-column-field="1">
-                  <span class="title-column-label">제목 1</span>
+                  <span class="title-column-label">제목 열 1</span>
                   <button id="titleColumnSelect" class="select-button" type="button" data-show-preview="false" disabled></button>
                 </label>
                 <label class="field title-column-field" data-title-column-field="2" hidden>
                   <span class="field-title-row">
-                    <span class="title-column-label">제목 2</span>
+                    <span class="title-column-label">제목 열 2</span>
                     <button class="mini-remove-button" type="button" data-remove-title-column="2">삭제</button>
                   </span>
                   <button id="subtitleColumn1Select" class="select-button" type="button" data-show-preview="false" disabled></button>
                 </label>
                 <label class="field title-column-field" data-title-column-field="3" hidden>
                   <span class="field-title-row">
-                    <span class="title-column-label">제목 3</span>
+                    <span class="title-column-label">제목 열 3</span>
                     <button class="mini-remove-button" type="button" data-remove-title-column="3">삭제</button>
                   </span>
                   <button id="subtitleColumn2Select" class="select-button" type="button" data-show-preview="false" disabled></button>
                 </label>
                 <label class="field title-column-field" data-title-column-field="4" hidden>
                   <span class="field-title-row">
-                    <span class="title-column-label">제목 4</span>
+                    <span class="title-column-label">제목 열 4</span>
                     <button class="mini-remove-button" type="button" data-remove-title-column="4">삭제</button>
                   </span>
                   <button id="subtitleColumn3Select" class="select-button" type="button" data-show-preview="false" disabled></button>
                 </label>
                 <label class="field title-column-field" data-title-column-field="5" hidden>
                   <span class="field-title-row">
-                    <span class="title-column-label">제목 5</span>
+                    <span class="title-column-label">제목 열 5</span>
                     <button class="mini-remove-button" type="button" data-remove-title-column="5">삭제</button>
                   </span>
                   <button id="subtitleColumn4Select" class="select-button" type="button" data-show-preview="false" disabled></button>
@@ -441,6 +472,38 @@
         <footer class="import-screen-actions">
           <button id="importCancel" class="secondary-action" type="button">취소</button>
           <button id="importApply" class="primary-action" type="button">적용</button>
+        </footer>
+      </article>
+    </div>
+
+    <div
+      id="headerSettingsModal"
+      class="modal centered-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="headerSettingsTitle"
+      hidden
+    >
+      <div class="modal-backdrop" data-close-header-settings></div>
+      <article class="modal-card header-settings-modal-card">
+        <header class="modal-header">
+          <h2 id="headerSettingsTitle">헤더 설정</h2>
+          <div class="header-settings-header-tools">
+            <button id="headerAddColumn" class="secondary-action" type="button">
+              <span aria-hidden="true">+</span>
+              <span>항목 추가</span>
+            </button>
+          </div>
+          <button id="headerSettingsClose" class="icon-button" type="button" aria-label="헤더 설정 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div id="headerSettingsList" class="header-settings-list"></div>
+        <footer class="modal-footer-actions">
+          <button id="headerSettingsDone" class="primary-action" type="button">확인</button>
         </footer>
       </article>
     </div>

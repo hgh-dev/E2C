@@ -1414,11 +1414,7 @@ main {
 
 .title-columns-list {
   display: grid;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #ffffff;
-  padding: 7px;
+  gap: 8px;
 }
 
 .title-column-field {
@@ -1456,6 +1452,175 @@ main {
 
 .display-columns-field {
   grid-column: 1 / -1;
+}
+
+.header-settings-modal-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(480px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.header-settings-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.header-settings-header-tools .secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.header-settings-list {
+  display: grid;
+  gap: 7px;
+  overflow: auto;
+  padding: 10px 12px;
+}
+
+.header-setting-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  padding: 9px;
+}
+
+.header-setting-item.is-dragging {
+  position: relative;
+  z-index: 2;
+  border-color: #111111;
+  background: #ffffff;
+  box-shadow: var(--shadow-soft);
+  cursor: grabbing;
+  pointer-events: none;
+  transition: none;
+}
+
+.header-setting-item.is-hidden {
+  opacity: 0.62;
+}
+
+.header-setting-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-setting-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.header-setting-drag-handle {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.header-setting-drag-handle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.header-setting-drag-handle:hover,
+.header-setting-drag-handle:focus-visible {
+  background: #eef0f3;
+  color: var(--text);
+  outline: none;
+}
+
+.header-setting-main strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.header-setting-edit {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.header-setting-edit svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.header-setting-edit:hover,
+.header-setting-edit:focus-visible {
+  background: #eef0f3;
+  color: var(--text);
+  outline: none;
+}
+
+.header-setting-visibility {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.header-setting-visibility.is-hidden {
+  border-color: #111111;
+  background: #111111;
+  color: #ffffff;
+}
+
+.header-setting-visibility:hover,
+.header-setting-visibility:focus-visible {
+  border-color: #111111;
+  outline: none;
 }
 
 .checkbox-list {
@@ -1856,6 +2021,62 @@ main {
   gap: 2px;
 }
 
+.detail-field.has-url {
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.detail-copy-area {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.detail-copy-text {
+  display: inline;
+  width: auto;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.detail-copy-text:focus-visible {
+  outline: 2px solid #111111;
+  outline-offset: 3px;
+}
+
+.detail-url-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.detail-url-button:hover,
+.detail-url-button:focus-visible {
+  border-color: #111111;
+  background: #ffffff;
+  outline: none;
+}
+
+.detail-url-button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+}
+
 .field-name {
   color: var(--muted);
   font-size: 10px;
@@ -2004,6 +2225,52 @@ main {
   max-height: calc(100dvh - 28px);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+.export-format-modal-card {
+  width: min(420px, calc(100vw - 28px));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+#exportFormatModal {
+  z-index: 70;
+}
+
+.export-format-list {
+  gap: 8px;
+}
+
+.export-format-option {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.export-format-option:hover,
+.export-format-option:focus-visible {
+  border-color: #111111;
+  background: #ffffff;
+  outline: none;
+}
+
+.export-format-option strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.export-format-option span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
 }
 
 .modal-header {
@@ -2182,7 +2449,7 @@ main {
   border-bottom: 1px solid var(--line);
   background: transparent;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
 }
 
 .detail-field:focus-visible {

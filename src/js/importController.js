@@ -30,6 +30,8 @@ export function createImportController({
   closeDisplayColumnsModal,
   openDisplayModeModal,
   closeDisplayModeModal,
+  openHeaderSettingsModal,
+  closeHeaderSettingsModal,
   openImportModal,
   closeImportModal,
   openSidebar,
@@ -39,6 +41,7 @@ export function createImportController({
 }) {
   let draftState = cloneState(state);
   let pendingDisplayColumns = [];
+  let headerDragState = null;
 
   /**
    * [함수] renderDraftControls
@@ -57,6 +60,7 @@ export function createImportController({
    */
   function resetDraftFromState() {
     draftState = cloneState(state);
+    clearHeaderDragState();
   }
 
   /**
@@ -136,7 +140,7 @@ export function createImportController({
 
   /**
    * [함수] removeTitleColumn
-   * [역할] 제목 2~5 중 사용자가 누른 제목 입력칸을 삭제한다.
+   * [역할] 제목 열 2~5 중 사용자가 누른 제목 입력칸을 삭제한다.
    * [원리] 삭제 위치 뒤의 제목열 값을 앞으로 당기고 마지막 칸은 비운 뒤 표시열 중복을 다시 정리한다.
    */
   function removeTitleColumn(event) {
@@ -190,6 +194,140 @@ export function createImportController({
     const columns = event.target.checked ? getAllSelectableDisplayColumns(draftState) : [];
     setDisplayColumnCheckboxValues(columns);
     pendingDisplayColumns = getDisplayColumnCheckboxValues();
+  }
+
+  /**
+   * [함수] openHeaderSettings
+   * [역할] 헤더 설정 모달을 연다.
+   * [원리] 현재 draftState 기준으로 목록을 다시 렌더링한 뒤 모달을 표시한다.
+   */
+  function openHeaderSettings() {
+    renderDraftControls();
+    openHeaderSettingsModal();
+  }
+
+  /**
+   * [함수] closeHeaderSettings
+   * [역할] 헤더 설정 모달을 닫는다.
+   * [원리] draftState 변경은 유지하고 모달만 숨긴다.
+   */
+  function closeHeaderSettings() {
+    clearHeaderDragState();
+    renderDraftControls();
+    closeHeaderSettingsModal();
+  }
+
+  /**
+   * [함수] addHeaderColumn
+   * [역할] 새 헤더 항목을 추가한다.
+   * [원리] 열 이름을 입력받아 columns와 모든 row에 빈 값을 추가한다.
+   */
+  function addHeaderColumn() {
+    const columnName = window.prompt("추가할 항목 이름을 입력하세요.", "새 항목");
+    if (!columnName?.trim()) return;
+
+    const nextColumn = getUniqueColumnName(draftState.columns, columnName.trim());
+    draftState.columns = [...draftState.columns, nextColumn];
+    draftState.rows = draftState.rows.map((row) => ({ ...row, [nextColumn]: "" }));
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] handleHeaderSettingsAction
+   * [역할] 헤더 설정 목록의 수정/숨김/순서 버튼을 처리한다.
+   * [원리] data-header-action과 data-column을 읽어 draftState의 열 구조를 변경한다.
+   */
+  function handleHeaderSettingsAction(event) {
+    const button = event.target.closest("[data-header-action]");
+    if (!button) return;
+
+    const column = button.dataset.column;
+    const action = button.dataset.headerAction;
+    if (!column || !draftState.columns.includes(column)) return;
+
+    if (action === "rename") renameHeaderColumn(column);
+    if (action === "toggle") toggleHeaderColumn(column);
+  }
+
+  /**
+   * [함수] handleHeaderReorderPointerDown
+   * [역할] 세줄 핸들을 누른 상태에서 드래그 시작 지점을 기록한다.
+   * [원리] 핸들로 시작한 pointer만 캡처하고 이동 중 겹치는 항목을 찾아 columns 순서를 바꾼다.
+   */
+  function handleHeaderReorderPointerDown(event) {
+    if (event.button > 0) return;
+
+    const handle = event.target.closest("[data-header-drag-handle]");
+    if (!handle) return;
+
+    const item = handle.closest("[data-header-drag-column]");
+    if (!item) return;
+
+    const column = item.dataset.headerDragColumn;
+    if (!column || !draftState.columns.includes(column)) return;
+
+    event.preventDefault();
+    item.setPointerCapture?.(event.pointerId);
+    item.classList.add("is-dragging");
+    headerDragState = {
+      column,
+      pointerId: event.pointerId,
+      item,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    window.addEventListener("pointermove", handleHeaderReorderPointerMove);
+    window.addEventListener("pointerup", handleHeaderReorderPointerUp);
+    window.addEventListener("pointercancel", handleHeaderReorderPointerUp);
+  }
+
+  /**
+   * [함수] handleHeaderReorderPointerMove
+   * [역할] 드래그 중 포인터 아래의 항목 위치로 헤더 순서를 이동한다.
+   * [원리] elementFromPoint로 현재 항목을 찾고, 원본 열을 그 위치로 재배치한 뒤 목록을 다시 그린다.
+   */
+  function handleHeaderReorderPointerMove(event) {
+    if (!headerDragState || event.pointerId !== headerDragState.pointerId) return;
+
+    const deltaX = event.clientX - headerDragState.startX;
+    const deltaY = event.clientY - headerDragState.startY;
+    headerDragState.item.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest("[data-header-drag-column]");
+    const targetColumn = target?.dataset.headerDragColumn;
+    if (!targetColumn || targetColumn === headerDragState.column) return;
+
+    moveHeaderColumnNearTarget(headerDragState, target, event);
+  }
+
+  /**
+   * [함수] handleHeaderReorderPointerUp
+   * [역할] 헤더 순서 드래그를 종료한다.
+   * [원리] 드래그 상태와 시각 상태를 정리한다.
+   */
+  function handleHeaderReorderPointerUp(event) {
+    if (!headerDragState || event.pointerId !== headerDragState.pointerId) return;
+
+    clearHeaderDragState();
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] clearHeaderDragState
+   * [역할] 헤더 순서 드래그 상태와 전역 포인터 이벤트를 정리한다.
+   * [원리] 렌더링 중 DOM이 바뀌어도 남아 있을 수 있는 window 이벤트를 항상 해제한다.
+   */
+  function clearHeaderDragState() {
+    if (headerDragState?.item) {
+      headerDragState.item.classList.remove("is-dragging");
+      headerDragState.item.style.transform = "";
+    }
+    headerDragState = null;
+    window.removeEventListener("pointermove", handleHeaderReorderPointerMove);
+    window.removeEventListener("pointerup", handleHeaderReorderPointerUp);
+    window.removeEventListener("pointercancel", handleHeaderReorderPointerUp);
   }
 
   /**
@@ -403,6 +541,7 @@ export function createImportController({
   function applyTableFromHeaderRow(targetState) {
     const table = matrixToTable(targetState.sheetMatrix, targetState.headerRowIndex);
     targetState.columns = table.columns;
+    targetState.hiddenColumns = [];
     targetState.rows = table.rows;
     // 표 구조가 바뀌면 기존 행 기준 라벨/필터는 의미가 달라지므로 초기화합니다.
     targetState.labelMap = {};
@@ -412,6 +551,111 @@ export function createImportController({
     targetState.filterValue = "";
     applyDefaultColumns(targetState);
     renderDraftControls();
+  }
+
+  /**
+   * [함수] renameHeaderColumn
+   * [역할] 헤더 항목 이름을 수정한다.
+   * [원리] columns, rows, 제목/표시/필터/정렬 설정 안의 기존 열 이름을 새 이름으로 치환한다.
+   */
+  function renameHeaderColumn(column) {
+    const nextName = window.prompt("항목 이름을 입력하세요.", column);
+    if (!nextName?.trim() || nextName.trim() === column) return;
+
+    const nextColumn = getUniqueColumnName(draftState.columns.filter((item) => item !== column), nextName.trim());
+    draftState.columns = draftState.columns.map((item) => (item === column ? nextColumn : item));
+    draftState.rows = draftState.rows.map((row) => renameRowKey(row, column, nextColumn));
+    draftState.hiddenColumns = replaceColumnRefs(draftState.hiddenColumns || [], column, nextColumn);
+    replaceColumnSettingRefs(column, nextColumn);
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] toggleHeaderColumn
+   * [역할] 헤더 항목을 카드/상세내용 표시 대상에서 숨기거나 다시 표시한다.
+   * [원리] 숨김 시 경고를 표시하고 hiddenColumns에 추가하며, 표시 시 목록에서 제거한다.
+   */
+  function toggleHeaderColumn(column) {
+    const hiddenColumns = new Set(draftState.hiddenColumns || []);
+    if (hiddenColumns.has(column)) {
+      hiddenColumns.delete(column);
+      draftState.hiddenColumns = [...hiddenColumns];
+      renderDraftControls();
+      return;
+    }
+
+    if (!window.confirm(`'${column}' 항목을 숨기면 카드와 상세내용에 표시되지 않습니다.\n데이터는 삭제되지 않습니다.`)) return;
+
+    hiddenColumns.add(column);
+    draftState.hiddenColumns = [...hiddenColumns];
+    removeColumnFromVisibleSettings(column);
+    renderDraftControls();
+  }
+
+  /**
+   * [함수] moveHeaderColumnNearTarget
+   * [역할] 드래그한 헤더 항목을 포인터가 겹친 대상 항목 앞/뒤로 이동한다.
+   * [원리] DOM 순서를 즉시 바꾸고 columns 배열도 같은 순서로 맞춘다. 전체 렌더링은 드래그 종료 시점에만 한다.
+   */
+  function moveHeaderColumnNearTarget(dragState, target, event) {
+    const targetRect = target.getBoundingClientRect();
+    const shouldPlaceAfter = event.clientY > targetRect.top + targetRect.height / 2;
+    const referenceNode = shouldPlaceAfter ? target.nextElementSibling : target;
+    if (referenceNode === dragState.item) return;
+
+    const beforeRect = dragState.item.getBoundingClientRect();
+    target.parentElement.insertBefore(dragState.item, referenceNode);
+    const afterRect = dragState.item.getBoundingClientRect();
+    dragState.startX += afterRect.left - beforeRect.left;
+    dragState.startY += afterRect.top - beforeRect.top;
+    dragState.item.style.transform = `translate3d(${event.clientX - dragState.startX}px, ${event.clientY - dragState.startY}px, 0)`;
+
+    const nextColumns = [...target.parentElement.querySelectorAll("[data-header-drag-column]")]
+      .map((item) => item.dataset.headerDragColumn)
+      .filter(Boolean);
+    if (nextColumns.length !== draftState.columns.length || nextColumns.join("\u0000") === draftState.columns.join("\u0000")) {
+      return;
+    }
+
+    draftState.columns = nextColumns;
+  }
+
+  function replaceColumnSettingRefs(oldColumn, newColumn) {
+    getTitleColumnFields().forEach((field) => {
+      if (draftState[field] === oldColumn) draftState[field] = newColumn;
+    });
+    draftState.displayColumns = replaceColumnRefs(draftState.displayColumns || [], oldColumn, newColumn);
+    draftState.filters = (draftState.filters || []).map((filter) => ({
+      ...filter,
+      column: filter.column === oldColumn ? newColumn : filter.column,
+    }));
+    draftState.filterColumn = draftState.filterColumn === oldColumn ? newColumn : draftState.filterColumn;
+    draftState.sorts = (draftState.sorts || []).map((sort) => ({
+      ...sort,
+      column: sort.column === oldColumn ? newColumn : sort.column,
+    }));
+    draftState.sortColumn = draftState.sortColumn === oldColumn ? newColumn : draftState.sortColumn;
+    draftState.searchColumn = draftState.searchColumn === oldColumn ? newColumn : draftState.searchColumn;
+  }
+
+  function removeColumnFromVisibleSettings(column) {
+    getTitleColumnFields().forEach((field) => {
+      if (draftState[field] === column) draftState[field] = "";
+    });
+    draftState.displayColumns = (draftState.displayColumns || []).filter((item) => item !== column);
+    draftState.filters = (draftState.filters || []).filter((filter) => filter.column !== column);
+    if (draftState.filterColumn === column) {
+      draftState.filterColumn = "";
+      draftState.filterValue = "";
+    }
+    draftState.sorts = (draftState.sorts || []).filter((sort) => sort.column !== column);
+    if (draftState.sortColumn === column) {
+      draftState.sortColumn = "";
+      draftState.sortDirection = "asc";
+      draftState.randomSortSeed = "";
+    }
+    if (draftState.searchColumn === column) draftState.searchColumn = "";
+    syncDisplayColumnsWithTitleColumns();
   }
 
   return {
@@ -425,6 +669,7 @@ export function createImportController({
     handleDisplayModeChange,
     handleFileDrop,
     handleFileChange,
+    handleHeaderSettingsAction,
     handleHeaderRowChange,
     handleSheetChange,
     handleSubtitleColumn1Change,
@@ -432,8 +677,14 @@ export function createImportController({
     handleSubtitleColumn3Change,
     handleSubtitleColumn4Change,
     handleTitleColumnChange,
+    addHeaderColumn,
+    closeHeaderSettings,
+    handleHeaderReorderPointerDown,
+    handleHeaderReorderPointerMove,
+    handleHeaderReorderPointerUp,
     openDisplayColumnsSettings,
     openDisplayModeSettings,
+    openHeaderSettings,
     openImportSettings,
     removeTitleColumn,
     resetDraftFromState,
@@ -442,7 +693,7 @@ export function createImportController({
 
 /**
  * [함수] getTitleColumnFields
- * [역할] 제목 1~5가 저장되는 상태 필드명을 순서대로 반환한다.
+ * [역할] 제목 열 1~5가 저장되는 상태 필드명을 순서대로 반환한다.
  * [원리] 제목 삭제 시 뒤 필드 값을 앞으로 당기기 위한 공통 순서 목록이다.
  */
 function getTitleColumnFields() {
@@ -468,6 +719,27 @@ function getTitleColumnCount(source) {
   );
   const requestedCount = Number(source.titleColumnCount) || 1;
   return Math.min(5, Math.max(1, requestedCount, lastSelectedIndex + 1));
+}
+
+function getUniqueColumnName(columns, name) {
+  if (!columns.includes(name)) return name;
+
+  let index = 2;
+  while (columns.includes(`${name} ${index}`)) {
+    index += 1;
+  }
+  return `${name} ${index}`;
+}
+
+function renameRowKey(row, oldColumn, newColumn) {
+  return Object.entries(row).reduce((nextRow, [key, value]) => {
+    nextRow[key === oldColumn ? newColumn : key] = value;
+    return nextRow;
+  }, {});
+}
+
+function replaceColumnRefs(columns, oldColumn, newColumn) {
+  return columns.map((column) => (column === oldColumn ? newColumn : column));
 }
 
 /**

@@ -18,10 +18,11 @@ import { normalizeValue } from "./utils.js";
 export function getVisibleRows(state) {
   const searchTerm = state.searchTerm.trim().toLowerCase();
   // 검색 범위를 특정 열로 제한하지 않으면 모든 열을 대상으로 검사합니다.
+  const visibleColumns = getVisibleColumns(state);
   const searchColumns =
-    state.searchColumn && state.columns.includes(state.searchColumn)
+    state.searchColumn && visibleColumns.includes(state.searchColumn)
       ? [state.searchColumn]
-      : state.columns;
+      : visibleColumns;
   const filters = normalizeFilters(state);
 
   const filtered = state.rows.filter((row) => {
@@ -65,6 +66,11 @@ export function getVisibleRows(state) {
 
     return 0;
   });
+}
+
+function getVisibleColumns(state) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  return state.columns.filter((column) => !hiddenColumns.has(column));
 }
 
 /**

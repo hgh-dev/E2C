@@ -24,6 +24,7 @@ export function createDeckController({
   closeSidebar,
 }) {
   let activeDeckId = "";
+  let pendingExportDeckId = "";
 
   /**
    * [함수] refreshDeckList
@@ -231,7 +232,7 @@ export function createDeckController({
     }
 
     if (action === "export") {
-      await exportDeck(deckId);
+      openExportFormatModal(deckId);
       return;
     }
 
@@ -260,11 +261,33 @@ export function createDeckController({
   }
 
   /**
-   * [함수] exportDeck
+   * [함수] openExportFormatModal
+   * [역할] 내보낼 덱을 기억하고 JSON/엑셀 선택 모달을 연다.
+   * [원리] 점세개 메뉴의 내보내기 클릭 후 실제 파일 형식 선택은 별도 버튼에서 처리한다.
+   */
+  function openExportFormatModal(deckId) {
+    pendingExportDeckId = deckId;
+    elements.exportFormatModal.hidden = false;
+    elements.exportJson.focus();
+  }
+
+  /**
+   * [함수] closeExportFormatModal
+   * [역할] 내보내기 형식 선택 모달을 닫는다.
+   * [원리] 대기 중인 deckId를 비워 다음 내보내기와 상태가 섞이지 않게 한다.
+   */
+  function closeExportFormatModal() {
+    pendingExportDeckId = "";
+    elements.exportFormatModal.hidden = true;
+  }
+
+  /**
+   * [함수] exportDeckAsJson
    * [역할] 선택한 덱 하나를 JSON 파일로 내보낸다.
    * [원리] 백업 메타 정보와 덱 배열을 만들고 downloadJson으로 내려받게 한다.
    */
-  async function exportDeck(deckId) {
+  async function exportDeckAsJson() {
+    const deckId = pendingExportDeckId;
     const deck = (await getDecks()).find((deckItem) => deckItem.id === deckId);
     if (!deck) return;
 
@@ -276,6 +299,44 @@ export function createDeckController({
       decks: [deck],
     };
     downloadJson(payload, `e2c-deck-${sanitizeFileName(deck.name)}-${new Date().toISOString().slice(0, 10)}.json`);
+    closeExportFormatModal();
+  }
+
+  /**
+   * [함수] exportDeckAsExcel
+   * [역할] 선택한 덱의 카드 데이터를 xlsx 파일로 내보낸다.
+   * [원리] 저장된 덱 data를 현재 상태 구조로 복원한 뒤 columns 순서대로 SheetJS 워크시트를 만든다.
+   */
+  async function exportDeckAsExcel() {
+    const deckId = pendingExportDeckId;
+    const deck = (await getDecks()).find((deckItem) => deckItem.id === deckId);
+    if (!deck) return;
+
+    if (!window.XLSX) {
+      showMessage("엑셀 파서가 로드되지 않았습니다. 네트워크 연결을 확인하세요.");
+      return;
+    }
+
+    const deckState = deck.data ? deserializeState(deck.data) : createEmptyState();
+    const hasLabelColumn = deckState.labelMap && Object.keys(deckState.labelMap).length > 0;
+    const headers = hasLabelColumn ? [...deckState.columns, "E2C_라벨"] : [...deckState.columns];
+    const sheetRows = [
+      headers,
+      ...deckState.rows.map((row, index) =>
+        headers.map((column) => {
+          if (column === "E2C_라벨") return formatLabelValue(deckState.labelMap?.[index] || "");
+          return row[column] ?? "";
+        }),
+      ),
+    ];
+    const workbook = window.XLSX.utils.book_new();
+    const sheet = window.XLSX.utils.aoa_to_sheet(headers.length ? sheetRows : [["데이터 없음"]]);
+    window.XLSX.utils.book_append_sheet(workbook, sheet, "E2C");
+    window.XLSX.writeFile(
+      workbook,
+      `e2c-deck-${sanitizeFileName(deck.name)}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+    closeExportFormatModal();
   }
 
   /**
@@ -309,7 +370,10 @@ export function createDeckController({
     autoSaveActiveDeck,
     closeDeckMenuOnOutsideClick,
     closeDeckMenus,
+    closeExportFormatModal,
     createDeck,
+    exportDeckAsExcel,
+    exportDeckAsJson,
     getActiveDeckId,
     handleDeckClick,
     hasActiveDeck,
@@ -334,6 +398,25 @@ function downloadJson(payload, fileName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * [함수] formatLabelValue
+ * [역할] 내부 라벨 값을 엑셀에 읽기 쉬운 한국어 값으로 변환한다.
+ * [원리] 라벨이 없으면 빈 문자열, 알려진 라벨이면 색상명을 반환한다.
+ */
+function formatLabelValue(value) {
+  const labels = {
+    red: "빨간색",
+    orange: "주황색",
+    yellow: "노란색",
+    green: "초록색",
+    blue: "파란색",
+    indigo: "남색",
+    purple: "보라색",
+    gray: "회색",
+  };
+  return labels[value] || "";
 }
 
 /**

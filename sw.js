@@ -1,4 +1,4 @@
-const CACHE_NAME = "e2c-pwa-v24";
+const CACHE_NAME = "e2c-pwa-v45";
 const APP_SHELL = [
   "./",
   "./index.html",

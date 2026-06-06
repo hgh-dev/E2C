@@ -20,6 +20,7 @@ export function createEmptyState() {
     sheetMatrix: [],
     headerRowIndex: 0,
     columns: [],
+    hiddenColumns: [],
     rows: [],
     titleColumn: "",
     titleColumnCount: 1,
@@ -59,6 +60,7 @@ export function cloneState(source) {
     sheetMatrix: source.sheetMatrix.map((row) => [...row]),
     headerRowIndex: source.headerRowIndex,
     columns: [...source.columns],
+    hiddenColumns: [...(source.hiddenColumns || [])],
     rows: source.rows.map((row) => ({ ...row })),
     titleColumn: source.titleColumn,
     titleColumnCount: getTitleColumnCount(source),
@@ -97,6 +99,7 @@ export function copyState(source, target) {
   target.sheetMatrix = source.sheetMatrix.map((row) => [...row]);
   target.headerRowIndex = source.headerRowIndex;
   target.columns = [...source.columns];
+  target.hiddenColumns = [...(source.hiddenColumns || [])];
   target.rows = source.rows.map((row) => ({ ...row }));
   target.titleColumn = source.titleColumn;
   target.titleColumnCount = getTitleColumnCount(source);
@@ -135,6 +138,7 @@ export function serializeState(source) {
     sheetMatrix: source.sheetMatrix,
     headerRowIndex: source.headerRowIndex,
     columns: source.columns,
+    hiddenColumns: source.hiddenColumns || [],
     rows: source.rows,
     titleColumn: source.titleColumn,
     titleColumnCount: getTitleColumnCount(source),
@@ -171,6 +175,7 @@ export function deserializeState(data) {
     sheetNames: data.sheetNames?.length ? data.sheetNames : [data.activeSheetName || "저장된 시트"],
     sheetMatrix: data.sheetMatrix || [],
     columns: data.columns || [],
+    hiddenColumns: data.hiddenColumns || [],
     rows: data.rows || [],
     displayColumns: data.displayColumns || [],
     filters: normalizeSerializedFilters(data),

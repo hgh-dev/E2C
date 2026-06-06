@@ -26,7 +26,8 @@ export function renderFilterSortControls({
   closeFilterPanel,
   closeSortPanel,
 }) {
-  const hasColumns = state.columns.length > 0;
+  const visibleColumns = getVisibleColumns(state);
+  const hasColumns = visibleColumns.length > 0;
   const filters = getStateFilters(state);
   const sorts = getStateSorts(state);
   const hasActiveFilter = filters.some((filter) => filter.column && filter.values.length > 0);
@@ -37,7 +38,7 @@ export function renderFilterSortControls({
   elements.sortOpen.disabled = !hasColumns;
   elements.sortOpen.classList.toggle("active", hasActiveSort);
 
-  const columnOptions = getColumnOptions(state.columns, state.rows);
+  const columnOptions = getColumnOptions(visibleColumns, state.rows);
 
   renderFilterRows({
     elements,
@@ -99,8 +100,9 @@ export function renderSearchControl({
   populateSelect,
   closeSearchPanel,
 }) {
-  const hasColumns = state.columns.length > 0;
-  const columnOptions = getColumnOptions(state.columns, state.rows);
+  const visibleColumns = getVisibleColumns(state);
+  const hasColumns = visibleColumns.length > 0;
+  const columnOptions = getColumnOptions(visibleColumns, state.rows);
   populateSelect(elements.searchColumnSelect, columnOptions, state.searchColumn, {
     value: "",
     label: "전체 열",
@@ -117,6 +119,11 @@ export function renderSearchControl({
   if (!hasColumns) {
     closeSearchPanel();
   }
+}
+
+function getVisibleColumns(state) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  return state.columns.filter((column) => !hiddenColumns.has(column));
 }
 
 /**

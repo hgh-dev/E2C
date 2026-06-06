@@ -100,6 +100,10 @@ const elements = {
   googleDriveFileConfirm: document.querySelector("#googleDriveFileConfirm"),
   googleDriveFileContent: document.querySelector("#googleDriveFileContent"),
   savedList: document.querySelector("#savedList"),
+  exportFormatModal: document.querySelector("#exportFormatModal"),
+  exportFormatClose: document.querySelector("#exportFormatClose"),
+  exportJson: document.querySelector("#exportJson"),
+  exportExcel: document.querySelector("#exportExcel"),
   newDeck: document.querySelector("#newDeck"),
   importSavedInput: document.querySelector("#importSavedInput"),
   importOpen: document.querySelector("#importOpen"),
@@ -113,6 +117,12 @@ const elements = {
   fileName: document.querySelector("#fileName"),
   sheetSelect: document.querySelector("#sheetSelect"),
   headerRowSelect: document.querySelector("#headerRowSelect"),
+  headerSettingsOpen: document.querySelector("#headerSettingsOpen"),
+  headerSettingsModal: document.querySelector("#headerSettingsModal"),
+  headerSettingsClose: document.querySelector("#headerSettingsClose"),
+  headerSettingsDone: document.querySelector("#headerSettingsDone"),
+  headerAddColumn: document.querySelector("#headerAddColumn"),
+  headerSettingsList: document.querySelector("#headerSettingsList"),
   titleColumnsList: document.querySelector("#titleColumnsList"),
   titleColumnFields: document.querySelectorAll("[data-title-column-field]"),
   addTitleColumn: document.querySelector("#addTitleColumn"),
@@ -517,6 +527,7 @@ export function applyDefaultColumns(state) {
   state.subtitleColumn2 = "";
   state.subtitleColumn3 = "";
   state.subtitleColumn4 = "";
+  state.hiddenColumns = [];
   state.displayColumns = getPreviewColumns(state.columns, getTitleColumns(state));
   state.filterColumn = "";
   state.filterValue = "";
@@ -622,21 +633,68 @@ function renderDetailPreviewCard(row, state, rowIndex) {
  * [원리] 현재 카드는 복사 버튼으로, 미리보기 카드는 비활성 div로 같은 내용을 출력한다.
  */
 function getDetailFieldMarkup(row, state, interactive) {
-  return state.columns
+  return getVisibleColumns(state)
     .map((column) => {
       const value = normalizeValue(row[column]) || "-";
-      const tag = interactive ? "button" : "div";
-      const attributes = interactive
-        ? `type="button" data-copy-value="${escapeHTML(value)}"`
-        : `aria-hidden="true"`;
+      const url = interactive ? getFirstUrl(value) : "";
       return `
-        <${tag} class="detail-field" ${attributes}>
-          <span class="field-name">${escapeHTML(column)}</span>
-          <span class="field-value">${escapeHTML(value)}</span>
-        </${tag}>
+        <div class="detail-field${url ? " has-url" : ""}">
+          <div class="detail-copy-area" ${interactive ? "" : `aria-hidden="true"`}>
+            <span class="field-name">${escapeHTML(column)}</span>
+            ${getDetailCopyTextMarkup(value, value, interactive, "field-value")}
+          </div>
+          ${url ? getDetailUrlButtonMarkup(url) : ""}
+        </div>
       `;
     })
     .join("");
+}
+
+/**
+ * [함수] getDetailCopyTextMarkup
+ * [역할] 상세 필드에서 실제 텍스트 부분만 복사 버튼으로 만든다.
+ * [원리] 섹션 배경이 아니라 열 이름/값 텍스트를 눌렀을 때만 data-copy-value가 잡히도록 한다.
+ */
+function getDetailCopyTextMarkup(text, copyValue, interactive, className) {
+  if (!interactive) {
+    return `<span class="${className}">${escapeHTML(text)}</span>`;
+  }
+
+  return `
+    <button class="detail-copy-text ${className}" type="button" data-copy-value="${escapeHTML(copyValue)}">
+      ${escapeHTML(text)}
+    </button>
+  `;
+}
+
+/**
+ * [함수] getFirstUrl
+ * [역할] 셀 값에 포함된 첫 번째 URL을 찾는다.
+ * [원리] http/https 또는 www로 시작하는 문자열을 감지하고 www 값은 https URL로 보정한다.
+ */
+function getFirstUrl(value) {
+  const match = normalizeValue(value).match(/\bhttps?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/i);
+  if (!match) return "";
+
+  const url = match[0].replace(/[.,;:!?)]$/, "");
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+/**
+ * [함수] getDetailUrlButtonMarkup
+ * [역할] 상세 필드 우측에 표시할 바로가기 버튼 HTML을 만든다.
+ * [원리] 새 탭 링크로 열고 작은 정사각형 SVG 아이콘 버튼 형태를 유지한다.
+ */
+function getDetailUrlButtonMarkup(url) {
+  return `
+    <a class="detail-url-button" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="URL 바로가기">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 4h6v6"></path>
+        <path d="M10 14 20 4"></path>
+        <path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4"></path>
+      </svg>
+    </a>
+  `;
 }
 
 /**
@@ -645,7 +703,7 @@ function getDetailFieldMarkup(row, state, interactive) {
  * [원리] 각 열 이름을 data 속성에 넣고 현재 값을 textarea에 채워 확인 시 다시 행 데이터로 반영한다.
  */
 function getDetailEditFieldMarkup(row, state) {
-  return state.columns
+  return getVisibleColumns(state)
     .map((column) => {
       const value = normalizeValue(row[column]);
       return `
@@ -656,6 +714,16 @@ function getDetailEditFieldMarkup(row, state) {
       `;
     })
     .join("");
+}
+
+/**
+ * [함수] getVisibleColumns
+ * [역할] 숨김 처리되지 않은 열 목록을 반환한다.
+ * [원리] hiddenColumns Set에 포함된 열은 카드 상세/수정 표시 대상에서 제외한다.
+ */
+function getVisibleColumns(state) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
+  return state.columns.filter((column) => !hiddenColumns.has(column));
 }
 
 /**
@@ -1049,6 +1117,7 @@ function showToast(message) {
  * [원리] 빈 값은 제거하고 Set으로 중복 열을 한 번만 남긴다.
  */
 export function getTitleColumns(state) {
+  const hiddenColumns = new Set(state.hiddenColumns || []);
   return [
     ...new Set([
       state.titleColumn,
@@ -1056,7 +1125,7 @@ export function getTitleColumns(state) {
       state.subtitleColumn2,
       state.subtitleColumn3,
       state.subtitleColumn4,
-    ].filter(Boolean)),
+    ].filter((column) => column && !hiddenColumns.has(column))),
   ];
 }
 
@@ -1094,6 +1163,24 @@ export function openDisplayColumnsModal() {
  */
 export function closeDisplayColumnsModal() {
   closeDisplayColumnsModalPanel(elements);
+}
+
+/**
+ * [함수] openHeaderSettingsModal
+ * [역할] 헤더 설정 모달을 연다.
+ * [원리] importController가 draftState 기준 목록을 렌더링한 뒤 hidden만 해제한다.
+ */
+export function openHeaderSettingsModal() {
+  elements.headerSettingsModal.hidden = false;
+}
+
+/**
+ * [함수] closeHeaderSettingsModal
+ * [역할] 헤더 설정 모달을 닫는다.
+ * [원리] hidden 상태만 true로 바꿔 가져오기 초안은 유지한다.
+ */
+export function closeHeaderSettingsModal() {
+  elements.headerSettingsModal.hidden = true;
 }
 
 /**
